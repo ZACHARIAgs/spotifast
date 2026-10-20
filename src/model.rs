@@ -750,6 +750,9 @@ pub struct SearchState {
     /// a prefix; the next query of the same run replaces it.
     pub typed_entry: Option<(u64, String)>,
     pub focus_requested: bool,
+    /// When `Some(serial)`, start playing the top result once search `serial`
+    /// finishes loading (used when pressing Enter in the search bar).
+    pub play_top_on_load: Option<u64>,
 }
 
 #[derive(Default)]
@@ -1242,6 +1245,7 @@ pub enum Action {
     ConfigurePersonalWebApp,
     OpenPersonalAppSetup,
     ToggleSidebar,
+    ToggleNowPlayingPanel,
     ToggleQueuePanel,
     ToggleLyricsPanel,
     /// Show or hide what friends are listening to, in the right panel.

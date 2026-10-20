@@ -13,6 +13,7 @@ pub mod library;
 pub mod login;
 mod lyrics;
 pub mod new_releases;
+pub mod now_playing;
 pub mod player_bar;
 mod prerelease;
 pub mod queue;
@@ -37,6 +38,7 @@ use crate::theme::{self, Icon};
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     let ctx = &ctx;
+    theme::sync_custom_fonts(ctx, &app.settings);
     keys::handle(app, ctx);
     for path in winamp::dropped_skins(ctx) {
         app.actions.push(Action::InstallSkin(path));
@@ -72,14 +74,18 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         if app.settings.sidebar_visible {
             sidebar::show(app, ui);
         }
-        if app.show_queue_panel {
-            queue::side_panel(app, ui);
-        }
-        if app.show_lyrics_panel {
-            lyrics::side_panel(app, ui);
-        }
-        if app.show_friends_panel {
-            friends::side_panel(app, ui);
+        if app.show_now_playing_panel {
+            now_playing::side_panel(app, ui);
+        } else {
+            if app.show_queue_panel {
+                queue::side_panel(app, ui);
+            }
+            if app.show_lyrics_panel {
+                lyrics::side_panel(app, ui);
+            }
+            if app.show_friends_panel {
+                friends::side_panel(app, ui);
+            }
         }
         central(app, ui);
         keep_room_for_panels(app, ctx);
@@ -119,7 +125,10 @@ fn keep_room_for_panels(app: &App, ctx: &Context) {
     let width = main_min_width(
         topbar::least_width(ctx),
         app.settings.sidebar_visible,
-        app.show_queue_panel || app.show_lyrics_panel || app.show_friends_panel,
+        app.show_now_playing_panel
+            || app.show_queue_panel
+            || app.show_lyrics_panel
+            || app.show_friends_panel,
     )
     .round();
     let id = Id::new("main-min-width");
@@ -290,7 +299,15 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                 .data(|data| data.get_temp::<f32>(scrolled_id))
                 .unwrap_or(0.0);
             if let Some((top, bottom)) = header_wash(&palette, overview, tint) {
-                widgets::paint_vertical_gradient(ui, header_rect(rect, scrolled), top, bottom);
+                let strength = app.settings.header_tint_strength.clamp(0.0, 2.0);
+                if strength > 0.0 {
+                    let top = if (strength - 1.0).abs() > 0.001 {
+                        blend(palette.window, top, strength.min(1.4))
+                    } else {
+                        top
+                    };
+                    widgets::paint_vertical_gradient(ui, header_rect(rect, scrolled), top, bottom);
+                }
             }
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
             // egui fades a scrolled page's edge into the panel's plain

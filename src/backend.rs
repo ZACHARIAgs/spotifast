@@ -5007,7 +5007,9 @@ fn playback_session<'a>(
 }
 
 async fn shared_made_for_you(api: &ApiGateway) -> ApiResult<Vec<Playlist>> {
-    let client = api.client_for(Operation::PlaylistSearch).await?;
+    let client = api
+        .client_for(Operation::UnsupportedDevelopmentMode)
+        .await?;
     let _background_permit = client.background_permit().await;
     let mut playlists = Vec::new();
     let mut seen = HashSet::new();

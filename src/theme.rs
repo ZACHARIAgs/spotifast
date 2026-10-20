@@ -252,6 +252,9 @@ pub fn titlebar_inset(ctx: &egui::Context) -> f32 {
     }
 }
 
+static CUSTOM_COLLECTION_FONT_ACTIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 pub fn regular(size: f32) -> egui::FontId {
     fastframe_fonts::Weight::Regular.font_id(size)
 }
@@ -266,6 +269,38 @@ pub fn semibold(size: f32) -> egui::FontId {
 
 pub fn bold(size: f32) -> egui::FontId {
     fastframe_fonts::Weight::Bold.font_id(size)
+}
+
+pub fn collection_regular(size: f32) -> egui::FontId {
+    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("collection-regular".into()))
+    } else {
+        regular(size)
+    }
+}
+
+pub fn collection_medium(size: f32) -> egui::FontId {
+    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("collection-regular".into()))
+    } else {
+        medium(size)
+    }
+}
+
+pub fn collection_semibold(size: f32) -> egui::FontId {
+    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("collection-bold".into()))
+    } else {
+        semibold(size)
+    }
+}
+
+pub fn collection_bold(size: f32) -> egui::FontId {
+    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("collection-bold".into()))
+    } else {
+        bold(size)
+    }
 }
 
 /// How the desktop renders text, read once per process.
@@ -413,11 +448,122 @@ fn apply_to_style(style: &mut egui::Style, palette: &Palette) {
 /// (so every emoji wears the same style, ahead of egui's own pair), then the
 /// installed faces for the scripts Inter lacks, drawn the way the desktop
 /// renders text.
-fn install_fonts(ctx: &egui::Context) {
+fn base_font_definitions() -> egui::FontDefinitions {
     let emoji = egui::FontData::from_static(include_bytes!("../assets/fonts/NotoEmoji.ttf"));
     let mut fonts = fastframe_fonts::FontSetup::default()
         .companion("noto_emoji", std::sync::Arc::new(emoji))
         .definitions();
+    text_rendering().apply_to(&mut fonts);
+    fonts
+}
+
+fn install_fonts(ctx: &egui::Context) {
+    ctx.set_fonts(base_font_definitions());
+}
+
+/// Synchronizes custom interface and collection (playlist/album) fonts when
+/// `settings.ui_font` or `settings.collection_font` changes.
+pub fn sync_custom_fonts(ctx: &egui::Context, settings: &crate::settings::Settings) {
+    let key_id = egui::Id::new("applied-custom-fonts");
+    let wanted = (settings.ui_font.clone(), settings.collection_font.clone());
+    let current = ctx.data(|data| data.get_temp::<(Option<String>, Option<String>)>(key_id));
+    if current.as_ref() == Some(&wanted) {
+        return;
+    }
+    ctx.data_mut(|data| data.insert_temp(key_id, wanted.clone()));
+
+    let mut fonts = base_font_definitions();
+    let fallback_list: Vec<String> = fonts
+        .families
+        .get(&egui::FontFamily::Proportional)
+        .cloned()
+        .unwrap_or_default();
+
+    if let Some(ui_family) = wanted.0.as_deref()
+        && let Some((reg, bold)) = crate::system_fonts::load_family_faces(ui_family)
+    {
+        let reg_data = std::sync::Arc::new(egui::FontData {
+            font: std::borrow::Cow::Owned(reg.bytes),
+            index: reg.index,
+            tweak: Default::default(),
+        });
+        let bold_data = match bold {
+            Some(b) => std::sync::Arc::new(egui::FontData {
+                font: std::borrow::Cow::Owned(b.bytes),
+                index: b.index,
+                tweak: Default::default(),
+            }),
+            None => std::sync::Arc::clone(&reg_data),
+        };
+        fonts
+            .font_data
+            .insert("custom_ui_regular".to_owned(), reg_data);
+        fonts
+            .font_data
+            .insert("custom_ui_bold".to_owned(), bold_data);
+        for weight in [
+            fastframe_fonts::Weight::Regular,
+            fastframe_fonts::Weight::Medium,
+        ] {
+            let fam = weight.font_id(14.0).family;
+            fonts
+                .families
+                .entry(fam)
+                .or_default()
+                .insert(0, "custom_ui_regular".to_owned());
+        }
+        for weight in [
+            fastframe_fonts::Weight::SemiBold,
+            fastframe_fonts::Weight::Bold,
+        ] {
+            let fam = weight.font_id(14.0).family;
+            fonts
+                .families
+                .entry(fam)
+                .or_default()
+                .insert(0, "custom_ui_bold".to_owned());
+        }
+    }
+
+    let mut coll_active = false;
+    let effective_coll = wanted.1.as_deref().or(wanted.0.as_deref());
+    if let Some(coll_family) = effective_coll
+        && let Some((reg, bold)) = crate::system_fonts::load_family_faces(coll_family)
+    {
+        let reg_data = std::sync::Arc::new(egui::FontData {
+            font: std::borrow::Cow::Owned(reg.bytes),
+            index: reg.index,
+            tweak: Default::default(),
+        });
+        let bold_data = match bold {
+            Some(b) => std::sync::Arc::new(egui::FontData {
+                font: std::borrow::Cow::Owned(b.bytes),
+                index: b.index,
+                tweak: Default::default(),
+            }),
+            None => std::sync::Arc::clone(&reg_data),
+        };
+        fonts
+            .font_data
+            .insert("custom_collection_regular".to_owned(), reg_data);
+        fonts
+            .font_data
+            .insert("custom_collection_bold".to_owned(), bold_data);
+
+        let mut reg_fam = vec!["custom_collection_regular".to_owned()];
+        reg_fam.extend(fallback_list.iter().cloned());
+        let mut bold_fam = vec!["custom_collection_bold".to_owned()];
+        bold_fam.extend(fallback_list);
+
+        fonts
+            .families
+            .insert(egui::FontFamily::Name("collection-regular".into()), reg_fam);
+        fonts
+            .families
+            .insert(egui::FontFamily::Name("collection-bold".into()), bold_fam);
+        coll_active = true;
+    }
+    CUSTOM_COLLECTION_FONT_ACTIVE.store(coll_active, std::sync::atomic::Ordering::Relaxed);
     text_rendering().apply_to(&mut fonts);
     ctx.set_fonts(fonts);
 }

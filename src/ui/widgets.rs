@@ -1478,13 +1478,24 @@ fn track_row_contents(
     row: TrackRow<'_>,
 ) -> (egui::Response, Option<RowPick>) {
     let palette = app.palette;
-    let row_height = if row.thin {
+    let row_scale = if row.compact {
+        1.0
+    } else {
+        app.settings.tracklist_row_scale.clamp(0.75, 1.4)
+    };
+    let font_scale = if row.compact {
+        1.0
+    } else {
+        app.settings.tracklist_font_scale.clamp(0.75, 1.4)
+    };
+    let row_height = ((if row.thin {
         theme::THIN_ROW_HEIGHT
     } else if row.compact {
         theme::COMPACT_ROW_HEIGHT
     } else {
         theme::ROW_HEIGHT
-    };
+    }) * row_scale)
+        .round();
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, row_height), Sense::click_and_drag());
     let rect = rect.translate(vec2(0.0, row.shift));
@@ -1619,7 +1630,7 @@ fn track_row_contents(
                 cell.center(),
                 egui::Align2::CENTER_CENTER,
                 label,
-                theme::regular(14.0),
+                theme::collection_regular(14.0 * font_scale),
                 color,
             );
         }
@@ -1710,7 +1721,7 @@ fn track_row_contents(
         theme::text(
             &mut child,
             row.item.name(),
-            theme::medium(14.0),
+            theme::collection_medium(14.0 * font_scale),
             title_color,
         );
         match row.item {
@@ -1721,14 +1732,14 @@ fn track_row_contents(
                 theme::text(
                     &mut child,
                     "•",
-                    theme::regular(12.0),
+                    theme::collection_regular(12.0 * font_scale),
                     palette.secondary.gamma_multiply(0.6),
                 );
                 artist_links(
                     &mut child,
                     app,
                     &track.artists,
-                    theme::regular(13.0),
+                    theme::collection_regular(13.0 * font_scale),
                     subtitle_color,
                 );
                 if let Some(added) = row.added_at.filter(|a| !a.starts_with("1970-01-01"))
@@ -1739,10 +1750,15 @@ fn track_row_contents(
                     theme::text(
                         &mut child,
                         "•",
-                        theme::regular(12.0),
+                        theme::collection_regular(12.0 * font_scale),
                         palette.secondary.gamma_multiply(0.6),
                     );
-                    theme::text(&mut child, &label, theme::regular(12.0), palette.secondary);
+                    theme::text(
+                        &mut child,
+                        &label,
+                        theme::collection_regular(12.0 * font_scale),
+                        palette.secondary,
+                    );
                     if label.ends_with(" ago") {
                         ui.ctx()
                             .request_repaint_after(std::time::Duration::from_secs(1));
@@ -1759,12 +1775,16 @@ fn track_row_contents(
                     theme::text(
                         &mut child,
                         "•",
-                        theme::regular(12.0),
+                        theme::collection_regular(12.0 * font_scale),
                         palette.secondary.gamma_multiply(0.6),
                     );
                     let show_id = episode.show.as_ref().map(|show| show.id.clone());
-                    let response =
-                        theme::link(&mut child, subtitle, theme::regular(13.0), subtitle_color);
+                    let response = theme::link(
+                        &mut child,
+                        subtitle,
+                        theme::collection_regular(13.0 * font_scale),
+                        subtitle_color,
+                    );
                     if response.clicked()
                         && let Some(id) = show_id
                     {
@@ -1777,12 +1797,17 @@ fn track_row_contents(
                     theme::text(
                         &mut child,
                         "•",
-                        theme::regular(12.0),
+                        theme::collection_regular(12.0 * font_scale),
                         palette.secondary.gamma_multiply(0.6),
                     );
                     let label =
                         util::format_relative_date(app.locale, added, jiff::Timestamp::now());
-                    theme::text(&mut child, &label, theme::regular(12.0), palette.secondary);
+                    theme::text(
+                        &mut child,
+                        &label,
+                        theme::collection_regular(12.0 * font_scale),
+                        palette.secondary,
+                    );
                     if label.ends_with(" ago") {
                         ui.ctx()
                             .request_repaint_after(std::time::Duration::from_secs(1));
@@ -1798,12 +1823,17 @@ fn track_row_contents(
         );
         child.set_clip_rect(title_rect.intersect(ui.clip_rect()));
         child.spacing_mut().item_spacing = vec2(6.0, 1.0);
-        child.spacing_mut().interact_size.y = 16.0;
-        let vertical_pad = ((row_height - 37.0) / 2.0).max(4.0);
+        child.spacing_mut().interact_size.y = 16.0 * font_scale;
+        let vertical_pad = ((row_height - 37.0 * font_scale) / 2.0).max(2.0);
         child.add_space(vertical_pad);
         child.horizontal(|ui| {
             ui.set_max_width(title_rect.width());
-            theme::text(ui, row.item.name(), theme::medium(14.5), title_color);
+            theme::text(
+                ui,
+                row.item.name(),
+                theme::collection_medium(14.5 * font_scale),
+                title_color,
+            );
         });
         child.horizontal(|ui| {
             ui.set_max_width(title_rect.width());
@@ -1816,7 +1846,7 @@ fn track_row_contents(
                         ui,
                         app,
                         &track.artists,
-                        theme::regular(12.5),
+                        theme::collection_regular(12.5 * font_scale),
                         subtitle_color,
                     );
                     if let Some(added) = row.added_at.filter(|a| !a.starts_with("1970-01-01"))
@@ -1825,12 +1855,17 @@ fn track_row_contents(
                         theme::text(
                             ui,
                             "•",
-                            theme::regular(12.0),
+                            theme::collection_regular(12.0 * font_scale),
                             palette.secondary.gamma_multiply(0.6),
                         );
                         let label =
                             util::format_relative_date(app.locale, added, jiff::Timestamp::now());
-                        theme::text(ui, &label, theme::regular(12.0), palette.secondary);
+                        theme::text(
+                            ui,
+                            &label,
+                            theme::collection_regular(12.0 * font_scale),
+                            palette.secondary,
+                        );
                         if label.ends_with(" ago") {
                             ui.ctx()
                                 .request_repaint_after(std::time::Duration::from_secs(1));
@@ -1844,7 +1879,12 @@ fn track_row_contents(
                         .map(|show| show.name.clone())
                         .unwrap_or_default();
                     let show_id = episode.show.as_ref().map(|show| show.id.clone());
-                    let response = theme::link(ui, subtitle, theme::regular(12.5), subtitle_color);
+                    let response = theme::link(
+                        ui,
+                        subtitle,
+                        theme::collection_regular(12.5 * font_scale),
+                        subtitle_color,
+                    );
                     if response.clicked()
                         && let Some(id) = show_id
                     {
@@ -1856,12 +1896,17 @@ fn track_row_contents(
                         theme::text(
                             ui,
                             "•",
-                            theme::regular(12.0),
+                            theme::collection_regular(12.0 * font_scale),
                             palette.secondary.gamma_multiply(0.6),
                         );
                         let label =
                             util::format_relative_date(app.locale, added, jiff::Timestamp::now());
-                        theme::text(ui, &label, theme::regular(12.0), palette.secondary);
+                        theme::text(
+                            ui,
+                            &label,
+                            theme::collection_regular(12.0 * font_scale),
+                            palette.secondary,
+                        );
                         if label.ends_with(" ago") {
                             ui.ctx()
                                 .request_repaint_after(std::time::Duration::from_secs(1));
@@ -1891,7 +1936,7 @@ fn track_row_contents(
             let response = theme::link(
                 &mut child,
                 album.name.clone(),
-                theme::regular(13.0),
+                theme::collection_regular(13.0 * font_scale),
                 subtitle_color,
             );
             if response.clicked() && !album.id.is_empty() {
@@ -1915,7 +1960,7 @@ fn track_row_contents(
                 cell.right(),
                 cell.center().y,
                 adder,
-                theme::regular(13.0),
+                theme::collection_regular(13.0 * font_scale),
                 palette.secondary,
             );
         }
@@ -1935,7 +1980,7 @@ fn track_row_contents(
                 pos2(cell.left(), cell.center().y),
                 egui::Align2::LEFT_CENTER,
                 &label,
-                theme::regular(13.0),
+                theme::collection_regular(13.0 * font_scale),
                 palette.secondary,
             );
             // Relative labels cross a boundary while the table is idle, so
@@ -1955,7 +2000,7 @@ fn track_row_contents(
                 pos2(cell.left(), cell.center().y),
                 egui::Align2::LEFT_CENTER,
                 util::format_count(*plays),
-                theme::regular(13.0),
+                theme::collection_regular(13.0 * font_scale),
                 palette.secondary,
             );
         }
@@ -2003,7 +2048,7 @@ fn track_row_contents(
         pos2(duration_rect.right() - 6.0, duration_rect.center().y),
         egui::Align2::RIGHT_CENTER,
         util::format_duration_ms(row.item.duration_ms()),
-        theme::regular(13.0),
+        theme::collection_regular(13.0 * font_scale),
         palette.secondary,
     );
     x += cols.duration;

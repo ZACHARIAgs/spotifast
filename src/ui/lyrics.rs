@@ -121,7 +121,7 @@ pub fn side_panel(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
-fn contents(app: &mut App, ui: &mut egui::Ui) {
+pub(super) fn contents(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     let Some(now) = app.now_playing() else {
         widgets::empty_state(
@@ -209,6 +209,8 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
     // line is quiet, regular text, the same before and after it has been
     // sung. A line takes 220 ms to light up or fade, as in omarchy-lyrics.
     let quiet = palette.text.gamma_multiply(0.45);
+    let lyric_scale = app.settings.lyrics_font_scale.clamp(0.7, 1.6);
+    let line_size = LINE_SIZE * lyric_scale;
     let scroll = crate::autoscroll::show(
         ui,
         egui::ScrollArea::vertical()
@@ -235,9 +237,9 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
                 );
                 let color = blend(quiet, palette.accent, lit);
                 let font = if lit > 0.5 {
-                    theme::bold(LINE_SIZE)
+                    theme::bold(line_size)
                 } else {
-                    theme::regular(LINE_SIZE)
+                    theme::regular(line_size)
                 };
                 // A timed line with no words is the band playing on.
                 let text = if line.text.is_empty() && lyrics.synced {
@@ -742,7 +744,8 @@ fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
     let following = app.lyrics_following && !manual_scroll;
     let follow = following && app.lyrics_line_shown != Some(active);
     let animation = crate::motion::scroll(ui.ctx(), 0.45);
-    let size = (ui.available_width() * 0.046).clamp(28.0, 42.0);
+    let lyric_scale = app.settings.lyrics_font_scale.clamp(0.7, 1.6);
+    let size = (ui.available_width() * 0.046).clamp(28.0, 42.0) * lyric_scale;
     // The line being sung brightens; all lines keep the same font metrics
     // so highlighting cannot rewrap the words during a transition.
     // A line takes 300 ms to light up or fade.

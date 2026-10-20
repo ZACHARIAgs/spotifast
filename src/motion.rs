@@ -95,6 +95,71 @@ pub fn scroll(ctx: &egui::Context, seconds: f32) -> egui::style::ScrollAnimation
     }
 }
 
+/// Decay time constant (in seconds) that turns egui's 100ms mouse-wheel snap
+/// into a smooth ease-in-out glide (~240ms total duration).
+const WHEEL_GLIDE_TAU: f32 = 0.075;
+
+/// Window scrolling state: wraps [`fastframe_scroll::Scrolling`] and smooths
+/// discrete mouse-wheel bursts into a fluid glide unless reduced motion is on.
+#[derive(Debug, Default)]
+pub struct Scrolling {
+    inner: fastframe_scroll::Scrolling,
+    reservoir: egui::Vec2,
+}
+
+impl Scrolling {
+    pub fn stop(&mut self) {
+        self.inner.stop();
+        self.reservoir = egui::Vec2::ZERO;
+    }
+
+    pub fn apply(&mut self, ctx: &egui::Context) {
+        self.inner.apply(ctx);
+        if reduced(ctx) || self.inner.from_trackpad() || ctx.input(|input| input.pointer.any_down())
+        {
+            self.reservoir = egui::Vec2::ZERO;
+            return;
+        }
+        let (raw_delta, dt) = ctx.input(|input| {
+            (
+                input.smooth_scroll_delta,
+                input.stable_dt.clamp(1.0 / 240.0, 0.05),
+            )
+        });
+        for d in 0..2 {
+            if raw_delta[d] != 0.0
+                && self.reservoir[d] != 0.0
+                && raw_delta[d].signum() != self.reservoir[d].signum()
+            {
+                self.reservoir[d] = 0.0;
+            }
+            self.reservoir[d] += raw_delta[d];
+        }
+        if ctx.current_pass_index() > 0 {
+            ctx.input_mut(|input| input.smooth_scroll_delta = egui::Vec2::ZERO);
+            if self.reservoir != egui::Vec2::ZERO {
+                ctx.request_repaint();
+            }
+            return;
+        }
+        let factor = 1.0 - (-dt / WHEEL_GLIDE_TAU).exp();
+        let mut step = egui::Vec2::ZERO;
+        for d in 0..2 {
+            if self.reservoir[d].abs() < 0.5 {
+                step[d] = self.reservoir[d];
+                self.reservoir[d] = 0.0;
+            } else {
+                step[d] = self.reservoir[d] * factor;
+                self.reservoir[d] -= step[d];
+            }
+        }
+        ctx.input_mut(|input| input.smooth_scroll_delta = step);
+        if self.reservoir != egui::Vec2::ZERO {
+            ctx.request_repaint();
+        }
+    }
+}
+
 #[cfg(windows)]
 fn system_reduced(_desktop_animations: Option<bool>) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -201,6 +266,51 @@ mod tests {
         assert_eq!(
             scroll(&ctx, 0.45),
             egui::style::ScrollAnimation::duration(0.45)
+        );
+    }
+
+    #[test]
+    fn wheel_scrolling_glides_smoothly_instead_of_snapping() {
+        let ctx = egui::Context::default();
+        apply(&ctx, false);
+        let mut scrolling = Scrolling::default();
+        let mut steps = Vec::new();
+        for frame in 0..24 {
+            let mut input = egui::RawInput {
+                time: Some(frame as f64 / 60.0),
+                ..Default::default()
+            };
+            if frame == 1 {
+                input.events.push(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: egui::vec2(0.0, -1.0),
+                    phase: egui::TouchPhase::Move,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
+            let mut output = ctx.run_ui(input, |ui| {
+                scrolling.apply(ui.ctx());
+                if frame >= 1 {
+                    steps.push(-ui.input(|i| i.smooth_scroll_delta.y));
+                }
+            });
+            output.textures_delta.clear();
+        }
+        assert!(
+            steps[0] < 15.0,
+            "first frame must ramp up gently instead of snapping: {}",
+            steps[0]
+        );
+        assert!(
+            steps[1] > steps[0],
+            "second frame must accelerate smoothly: {} -> {}",
+            steps[0],
+            steps[1]
+        );
+        let total: f32 = steps.iter().sum();
+        assert!(
+            (total - fastframe_scroll::WHEEL_STEP).abs() < 2.0,
+            "total distance must match one wheel step: {total}"
         );
     }
 }

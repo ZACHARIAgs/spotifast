@@ -125,6 +125,64 @@ fn recent(app: &mut App, ui: &mut egui::Ui) {
     });
 }
 
+/// Returns the URI of the "Top result" card for `results` and `query`.
+pub(crate) fn top_result_uri(results: &SearchResults, query: &str) -> Option<String> {
+    let q = query.trim().to_lowercase();
+    let top_artist = results
+        .artists
+        .as_ref()
+        .and_then(|page| page.items.first())
+        .filter(|artist| {
+            !artist.uri.is_empty()
+                && (artist.name.to_lowercase() == q
+                    || results.tracks.as_ref().is_none_or(|t| t.items.is_empty()))
+        });
+    if let Some(artist) = top_artist {
+        return Some(artist.uri.clone());
+    }
+    if let Some(track) = results
+        .tracks
+        .as_ref()
+        .and_then(|page| page.items.first())
+        .filter(|track| !track.uri.is_empty())
+    {
+        return Some(track.uri.clone());
+    }
+    if let Some(album) = results
+        .albums
+        .as_ref()
+        .and_then(|page| page.items.first())
+        .filter(|album| !album.uri.is_empty())
+    {
+        return Some(album.uri.clone());
+    }
+    if let Some(playlist) = results
+        .playlists
+        .as_ref()
+        .and_then(|page| page.items.first())
+        .filter(|playlist| !playlist.uri.is_empty())
+    {
+        return Some(playlist.uri.clone());
+    }
+    if let Some(show) = results
+        .shows
+        .as_ref()
+        .and_then(|page| page.items.first())
+        .filter(|show| !show.uri.is_empty())
+    {
+        return Some(show.uri.clone());
+    }
+    if let Some(episode) = results
+        .episodes
+        .as_ref()
+        .and_then(|page| page.items.first())
+        .filter(|episode| !episode.uri.is_empty())
+    {
+        return Some(episode.uri.clone());
+    }
+    None
+}
+
 fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
     let palette = app.palette;
     let locale = app.locale;

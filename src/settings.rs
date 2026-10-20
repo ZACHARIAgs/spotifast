@@ -313,6 +313,7 @@ pub struct Settings {
     /// Show the Library as responsive cover cards instead of rows.
     pub sidebar_grid: bool,
     pub sidebar_width: f32,
+    pub now_playing_width: f32,
     pub lyrics_width: f32,
     pub queue_width: f32,
     /// Use compact single-line rows without cover art in track lists.
@@ -442,6 +443,32 @@ pub struct Settings {
     /// succeeds. This flag is only in memory and is never persisted.
     #[serde(skip)]
     pub proxy_password_legacy: bool,
+    /// Custom font family for active playlists and albums (hero title, header
+    /// metadata, track rows, and the active sidebar entry). `None` uses the
+    /// default interface font.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collection_font: Option<String>,
+    /// Custom font family override for the entire interface. `None` uses Inter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_font: Option<String>,
+    /// Scale factor for playlist and album hero titles (`0.6..=1.5`).
+    pub collection_title_scale: f32,
+    /// Scale factor for track list text (`0.75..=1.4`).
+    pub tracklist_font_scale: f32,
+    /// Scale factor for track list row height (`0.75..=1.4`).
+    pub tracklist_row_scale: f32,
+    /// Scale factor for sidebar library row text (`0.8..=1.35`).
+    pub sidebar_font_scale: f32,
+    /// Scale factor for lyric text (`0.7..=1.6`).
+    pub lyrics_font_scale: f32,
+    /// Corner radius in points for playlist and album cover artwork (`0..=24`).
+    pub cover_radius: u8,
+    /// Strength multiplier for the album-art colour wash on headers (`0.0..=2.0`).
+    pub header_tint_strength: f32,
+    /// Show the Lyrics card in the Now Playing side panel.
+    pub now_playing_show_lyrics: bool,
+    /// Show the Queue card in the Now Playing side panel.
+    pub now_playing_show_queue: bool,
 }
 
 impl std::fmt::Debug for Settings {
@@ -490,6 +517,7 @@ impl Default for Settings {
             sidebar_compact: false,
             sidebar_grid: false,
             sidebar_width: 250.0,
+            now_playing_width: 360.0,
             lyrics_width: 360.0,
             queue_width: 360.0,
             tracklist_compact: false,
@@ -546,6 +574,17 @@ impl Default for Settings {
             proxy_username: String::new(),
             proxy_password: String::new(),
             proxy_password_legacy: false,
+            collection_font: None,
+            ui_font: None,
+            collection_title_scale: 1.0,
+            tracklist_font_scale: 1.0,
+            tracklist_row_scale: 1.0,
+            sidebar_font_scale: 1.0,
+            lyrics_font_scale: 1.0,
+            cover_radius: 6,
+            header_tint_strength: 1.0,
+            now_playing_show_lyrics: true,
+            now_playing_show_queue: true,
         }
     }
 }
@@ -555,6 +594,33 @@ fn default_buffer_ms() -> u32 {
 }
 
 impl Settings {
+    pub fn has_customizations(&self) -> bool {
+        self.collection_font.is_some()
+            || self.ui_font.is_some()
+            || (self.collection_title_scale - 1.0).abs() > 0.005
+            || (self.tracklist_font_scale - 1.0).abs() > 0.005
+            || (self.tracklist_row_scale - 1.0).abs() > 0.005
+            || (self.sidebar_font_scale - 1.0).abs() > 0.005
+            || (self.lyrics_font_scale - 1.0).abs() > 0.005
+            || self.cover_radius != 6
+            || (self.header_tint_strength - 1.0).abs() > 0.005
+            || !self.now_playing_show_lyrics
+            || !self.now_playing_show_queue
+    }
+
+    pub fn reset_customizations(&mut self) {
+        self.collection_font = None;
+        self.ui_font = None;
+        self.collection_title_scale = 1.0;
+        self.tracklist_font_scale = 1.0;
+        self.tracklist_row_scale = 1.0;
+        self.sidebar_font_scale = 1.0;
+        self.lyrics_font_scale = 1.0;
+        self.cover_radius = 6;
+        self.header_tint_strength = 1.0;
+        self.now_playing_show_lyrics = true;
+        self.now_playing_show_queue = true;
+    }
     /// The local files folder, when one is set.
     pub fn local_files_folder(&self) -> Option<std::path::PathBuf> {
         self.local_files_folder
@@ -1834,6 +1900,9 @@ pub struct SessionState {
     pub window_maximized: bool,
     /// Whether the queue panel was open.
     pub queue_open: Option<bool>,
+    /// Whether the Now Playing panel was open.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub now_playing_open: Option<bool>,
     /// Which tab the queue panel showed: `queue` or `recents`.
     pub queue_tab: Option<String>,
     /// Last outer position of the Winamp window.

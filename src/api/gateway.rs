@@ -118,22 +118,22 @@ fn session_serves(operation: Operation, personal_ready: bool) -> bool {
 fn plan(operation: Operation, personal_ready: bool) -> ApiSource {
     use Operation::*;
     match operation {
-        CanonicalAccount
-        | PlaylistLibrary
-        | PlaylistSearch
-        | ArtistTopTracks
-        | UnsupportedDevelopmentMode => ApiSource::Shared,
+        CanonicalAccount | PlaylistLibrary | ArtistTopTracks | UnsupportedDevelopmentMode => {
+            ApiSource::Shared
+        }
         PlaylistMetadata(PlaylistAccess::External | PlaylistAccess::Unknown)
         | PlaylistItems(PlaylistAccess::External | PlaylistAccess::Unknown)
         | PlaylistMutation(PlaylistAccess::External | PlaylistAccess::Unknown) => ApiSource::Shared,
         PlaylistMetadata(_) | PlaylistItems(_) | PlaylistMutation(_) if personal_ready => {
             ApiSource::Personal
         }
-        Playback | UserData | PlaylistCreation | Catalog | CatalogSearch if personal_ready => {
+        Playback | UserData | PlaylistCreation | PlaylistSearch | Catalog | CatalogSearch
+            if personal_ready =>
+        {
             ApiSource::Personal
         }
-        Playback | UserData | PlaylistCreation | Catalog | CatalogSearch | PlaylistMetadata(_)
-        | PlaylistItems(_) | PlaylistMutation(_) => ApiSource::Shared,
+        Playback | UserData | PlaylistCreation | PlaylistSearch | Catalog | CatalogSearch
+        | PlaylistMetadata(_) | PlaylistItems(_) | PlaylistMutation(_) => ApiSource::Shared,
     }
 }
 
@@ -581,6 +581,7 @@ mod tests {
             Operation::Playback,
             Operation::UserData,
             Operation::PlaylistCreation,
+            Operation::PlaylistSearch,
             Operation::Catalog,
             Operation::CatalogSearch,
             Operation::PlaylistMetadata(PlaylistAccess::Owned),
@@ -593,7 +594,6 @@ mod tests {
         for operation in [
             Operation::CanonicalAccount,
             Operation::PlaylistLibrary,
-            Operation::PlaylistSearch,
             Operation::UnsupportedDevelopmentMode,
             Operation::PlaylistMetadata(PlaylistAccess::External),
             Operation::PlaylistMetadata(PlaylistAccess::Unknown),

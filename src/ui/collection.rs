@@ -133,7 +133,11 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                 }));
             }
         }
-        let radius = if hero.round { cover_size / 2.0 } else { 6.0 };
+        let radius = if hero.round {
+            cover_size / 2.0
+        } else {
+            f32::from(app.settings.cover_radius)
+        };
         widgets::paint_shadow(ui, &palette, rect, radius);
         if hero.liked {
             super::sidebar::liked_cover(ui, rect, radius);
@@ -154,32 +158,39 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                 Some(app.backend.art()),
             );
         }
+        let title_scale = app.settings.collection_title_scale.clamp(0.6, 1.5);
         ui.vertical(|ui| {
             let width = ui.available_width();
             ui.set_width(width);
             ui.spacing_mut().item_spacing.y = 6.0;
             ui.add_space(cover_size * 0.08);
-            theme::text(ui, hero.kind.as_ref(), theme::medium(12.5), palette.text);
-            let mut size = if cover_size > 200.0 { 56.0 } else { 40.0 };
+            theme::text(
+                ui,
+                hero.kind.as_ref(),
+                theme::collection_medium(12.5),
+                palette.text,
+            );
+            let mut size = (if cover_size > 200.0 { 56.0 } else { 40.0 }) * title_scale;
+            let min_size = (22.0 * title_scale).max(16.0);
             loop {
                 let galley = ui.painter().layout_no_wrap(
                     hero.title.to_string(),
-                    theme::bold(size),
+                    theme::collection_bold(size),
                     palette.text,
                 );
-                if galley.size().x <= width || size <= 22.0 {
+                if galley.size().x <= width || size <= min_size {
                     break;
                 }
                 size -= 6.0;
             }
-            theme::text(ui, hero.title, theme::bold(size), palette.text);
+            theme::text(ui, hero.title, theme::collection_bold(size), palette.text);
             if let Some(description) = &hero.description
                 && !description.is_empty()
             {
                 theme::text(
                     ui,
                     description.as_str(),
-                    theme::regular(13.5),
+                    theme::collection_regular(13.5),
                     palette.secondary,
                 );
             }
@@ -204,17 +215,23 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                 }
                 for (index, (text, page)) in hero.byline.iter().enumerate() {
                     if index > 0 {
-                        theme::text(ui, "•", theme::regular(13.5), palette.secondary);
+                        theme::text(ui, "•", theme::collection_regular(13.5), palette.secondary);
                     }
                     match page {
                         Some(page) => {
-                            if theme::link(ui, text, theme::semibold(13.5), palette.text).clicked()
+                            if theme::link(ui, text, theme::collection_semibold(13.5), palette.text)
+                                .clicked()
                             {
                                 app.actions.push(Action::Open(page.clone()));
                             }
                         }
                         None => {
-                            theme::text(ui, text, theme::regular(13.5), palette.secondary);
+                            theme::text(
+                                ui,
+                                text,
+                                theme::collection_regular(13.5),
+                                palette.secondary,
+                            );
                         }
                     }
                 }
@@ -726,11 +743,13 @@ fn table_contents(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
     );
     let thin = app.settings.tracklist_compact;
     let show_cover = !thin && table.show_cover;
-    let row_height = if thin {
+    let row_scale = app.settings.tracklist_row_scale.clamp(0.75, 1.4);
+    let row_height = ((if thin {
         theme::THIN_ROW_HEIGHT
     } else {
         theme::ROW_HEIGHT
-    };
+    }) * row_scale)
+        .round();
 
     let finite = table
         .pagination

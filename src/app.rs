@@ -556,6 +556,10 @@ pub struct App {
     cover_uploads: HashMap<String, u64>,
     /// Successful uploads stay visible while Spotify propagates the new image.
     uploaded_covers: std::collections::HashMap<String, crate::playlist_cover::PendingCover>,
+    pub show_now_playing_panel: bool,
+    pub now_playing_lyrics_collapsed: bool,
+    pub now_playing_queue_collapsed: bool,
+    pub now_playing_lyrics_auto: Option<bool>,
     pub show_queue_panel: bool,
     pub show_lyrics_panel: bool,
     /// Friend activity takes the right panel's place, so at most one of the
@@ -668,7 +672,7 @@ pub struct App {
     pub quit_requested: bool,
     /// Wheel step, Linux touchpad scale and glide, and the axis a gesture
     /// holds, for the window on screen.
-    scrolling: fastframe_scroll::Scrolling,
+    scrolling: crate::motion::Scrolling,
     autoscroll: crate::autoscroll::Autoscroll,
     /// How each table is sorted, per page, for as long as the app runs.
     /// The rows picked out in a track table, and the page they belong to.
@@ -1164,7 +1168,14 @@ impl App {
             cover_request: 0,
             cover_uploads: HashMap::new(),
             uploaded_covers: Default::default(),
-            show_queue_panel: session.queue_open.unwrap_or(false),
+            show_now_playing_panel: session
+                .now_playing_open
+                .unwrap_or(!cfg!(test) && !session.queue_open.unwrap_or(false)),
+            now_playing_lyrics_collapsed: false,
+            now_playing_queue_collapsed: false,
+            now_playing_lyrics_auto: None,
+            show_queue_panel: session.queue_open.unwrap_or(false)
+                && !session.now_playing_open.unwrap_or(false),
             show_lyrics_panel: false,
             show_friends_panel: false,
             friends: Loadable::NotLoaded,
@@ -1227,7 +1238,7 @@ impl App {
             queue_start_pending: None,
             playlist_busy: false,
             quit_requested: false,
-            scrolling: fastframe_scroll::Scrolling::default(),
+            scrolling: crate::motion::Scrolling::default(),
             autoscroll: crate::autoscroll::Autoscroll::default(),
             selection: None,
             table_sorts: session
@@ -3557,11 +3568,13 @@ impl App {
         }
         if matches!(self.page(), Page::Queue)
             || self.show_queue_panel
+            || self.show_now_playing_panel
             || (self.settings.winamp_window && self.settings.playlist_open)
         {
             self.refresh_queue(true);
         }
-        if self.show_lyrics_panel || self.lyrics_fullscreen.is_some() {
+        if self.show_lyrics_panel || self.show_now_playing_panel || self.lyrics_fullscreen.is_some()
+        {
             // Fullscreen shows lyrics without the panel flag when the
             // queue column is open; a track change must refresh them.
             self.request_lyrics();
@@ -3764,13 +3777,22 @@ impl App {
                 self.refresh_devices();
             }
             let playlist_open = self.settings.winamp_window && self.settings.playlist_open;
-            if (self.show_queue_panel || matches!(self.page(), Page::Queue) || playlist_open)
+            if (self.show_queue_panel
+                || self.show_now_playing_panel
+                || matches!(self.page(), Page::Queue)
+                || playlist_open)
                 && !self.queue.is_loading()
                 && self
                     .queue_fetched_at
                     .is_none_or(|at| at.elapsed() > Duration::from_secs(20))
             {
                 self.refresh_queue(false);
+            }
+            if (self.show_lyrics_panel || self.show_now_playing_panel)
+                && matches!(self.lyrics, Loadable::NotLoaded)
+                && self.now_playing().is_some()
+            {
+                self.request_lyrics();
             }
             if self.show_friends_panel && !self.friends_in_flight {
                 match self.friends_fetched_at.map(|at| at.elapsed()) {
@@ -6164,6 +6186,7 @@ impl App {
         self.search.committed_run = None;
         self.search.playlists = None;
         self.search.error = None;
+        self.search.play_top_on_load = None;
         self.search.catalogue_pending = !query.is_empty();
         self.search.playlists_pending = false;
         // Results and their query change together. In particular, a failed
@@ -6178,6 +6201,33 @@ impl App {
             query,
             serial: self.search.serial,
         });
+    }
+
+    fn play_top_search_result(&mut self) -> bool {
+        let Some(results) = self.search.results.get() else {
+            return false;
+        };
+        let Some(uri) = crate::ui::search::top_result_uri(results, &self.search.committed) else {
+            return false;
+        };
+        if let Some(track) = results
+            .tracks
+            .as_ref()
+            .and_then(|page| page.items.first())
+            .filter(|track| track.uri == uri)
+            .cloned()
+        {
+            if let Some(id) = &track.id {
+                self.track_cache.insert(id.clone(), track);
+            }
+        }
+        if uri.starts_with("spotify:track:") || uri.starts_with("spotify:episode:") {
+            let request = PlayRequest::tracks(vec![uri]).starting_at_index(0);
+            self.play_request(request, false);
+        } else {
+            self.play_request(PlayRequest::context(uri), false);
+        }
+        true
     }
 
     /// A search the debounce started while the user may still be typing.
@@ -7789,6 +7839,12 @@ impl App {
                         self.search.playlists = Some((serial, page));
                         self.show_search_playlists();
                         self.remember_search(&query);
+                        if !self.search.catalogue_pending
+                            && self.search.play_top_on_load == Some(serial)
+                        {
+                            self.search.play_top_on_load = None;
+                            self.play_top_search_result();
+                        }
                     }
                     Err(error) => self.search_failed(&gettext(self.locale, "Playlists"), error),
                 }
@@ -7815,6 +7871,11 @@ impl App {
                         self.search.results = Loadable::Loaded(results);
                         self.search.results_serial = serial;
                         self.show_search_playlists();
+                        if self.search.play_top_on_load == Some(serial) {
+                            if self.play_top_search_result() || !self.search.playlists_pending {
+                                self.search.play_top_on_load = None;
+                            }
+                        }
                     }
                     Err(error) => self.search_failed(&gettext(self.locale, "Search"), error),
                 }
@@ -10403,6 +10464,7 @@ impl App {
                 | Action::SignOut
                 | Action::ToggleWinampWindow
                 | Action::ToggleFriendsPanel
+                | Action::ToggleNowPlayingPanel
         ) {
             // ToggleQueuePanel is deliberately absent: in lyrics fullscreen
             // it flips the queue column instead of leaving the view.
@@ -11084,11 +11146,22 @@ impl App {
                 self.search.query = query.clone();
                 self.search.typed_at = None;
                 self.open(Page::Search);
+                let trimmed = query.trim().to_string();
                 if typed {
-                    self.submit_typed_search(query.trim().to_string());
+                    self.submit_typed_search(trimmed.clone());
+                    if !trimmed.is_empty() {
+                        if !self.search.catalogue_pending
+                            && self.search.results_serial == self.search.serial
+                            && self.play_top_search_result()
+                        {
+                            self.search.play_top_on_load = None;
+                        } else if self.search.catalogue_pending || self.search.playlists_pending {
+                            self.search.play_top_on_load = Some(self.search.serial);
+                        }
+                    }
                 } else {
                     self.search.edit_run += 1;
-                    self.run_search(query.trim().to_string());
+                    self.run_search(trimmed);
                 }
             }
             Action::EndSearchRun => self.search.edit_run += 1,
@@ -11181,18 +11254,37 @@ impl App {
                 self.settings.sidebar_visible = !self.settings.sidebar_visible;
                 self.settings_dirty = true;
             }
+            Action::ToggleNowPlayingPanel => {
+                self.leave_lyrics_fullscreen(ctx);
+                self.show_now_playing_panel = !self.show_now_playing_panel;
+                if self.show_now_playing_panel {
+                    self.show_queue_panel = false;
+                    self.show_lyrics_panel = false;
+                    self.show_friends_panel = false;
+                    self.lyrics_following = true;
+                    self.refresh_queue(true);
+                    self.request_lyrics();
+                }
+            }
             Action::ToggleQueuePanel => {
                 self.show_queue_panel = !self.show_queue_panel;
                 if self.show_queue_panel {
+                    self.show_now_playing_panel = false;
                     self.show_lyrics_panel = false;
                     self.show_friends_panel = false;
                     self.refresh_queue(true);
                 }
             }
             Action::ToggleLyricsPanel => {
+                let was_fullscreen = self.lyrics_fullscreen.is_some();
                 self.leave_lyrics_fullscreen(ctx);
-                self.show_lyrics_panel = !self.show_lyrics_panel;
+                self.show_lyrics_panel = if was_fullscreen {
+                    false
+                } else {
+                    !self.show_lyrics_panel
+                };
                 if self.show_lyrics_panel {
+                    self.show_now_playing_panel = false;
                     self.show_queue_panel = false;
                     self.show_friends_panel = false;
                     self.lyrics_following = true;
@@ -11200,8 +11292,10 @@ impl App {
                 }
             }
             Action::ToggleFriendsPanel => {
+                self.leave_lyrics_fullscreen(ctx);
                 self.show_friends_panel = !self.show_friends_panel;
                 if self.show_friends_panel {
+                    self.show_now_playing_panel = false;
                     self.show_queue_panel = false;
                     self.show_lyrics_panel = false;
                     self.refresh_friends();
@@ -11226,10 +11320,10 @@ impl App {
                         }
                     }
                     self.lyrics_fullscreen_seen = false;
-                    // The queue flag is preserved: an open side panel becomes
-                    // the fullscreen queue column instead of vanishing. The
-                    // lyrics panel yields, so normal mode never shows both.
-                    if !self.show_queue_panel {
+                    // The queue and Now Playing flags are preserved; the
+                    // lyrics panel yields, so normal mode never shows two
+                    // right-hand panels at once.
+                    if !self.show_queue_panel && !self.show_now_playing_panel {
                         self.show_lyrics_panel = true;
                     }
                     self.show_friends_panel = false;
@@ -12588,6 +12682,7 @@ impl App {
                 window_pos: self.window_geometry.position,
                 window_maximized: self.window_geometry.maximized,
                 queue_open: Some(self.show_queue_panel),
+                now_playing_open: Some(self.show_now_playing_panel),
                 queue_tab: Some(self.queue_tab.encode().to_string()),
                 winamp_pos: self.winamp.geometry.position,
                 milkdrop_pos: self.milkdrop_pos,
@@ -14056,10 +14151,25 @@ mod tests {
         app.lyrics_fullscreen = None;
         app.show_queue_panel = false;
         app.show_lyrics_panel = false;
+        app.show_now_playing_panel = true;
+        app.apply(Action::SetLyricsFullscreen(true), &ctx);
+        assert!(app.show_now_playing_panel);
+        assert!(
+            !app.show_lyrics_panel,
+            "an open Now Playing panel yields the lyrics panel"
+        );
+        app.apply(Action::SetLyricsFullscreen(false), &ctx);
+        assert!(app.show_now_playing_panel);
+        assert!(!app.show_lyrics_panel);
+
+        app.lyrics_fullscreen = None;
+        app.show_now_playing_panel = false;
+        app.show_queue_panel = false;
+        app.show_lyrics_panel = false;
         app.apply(Action::SetLyricsFullscreen(true), &ctx);
         assert!(
             app.show_lyrics_panel,
-            "without a queue, entering still opens lyrics"
+            "without a queue or Now Playing panel, entering still opens lyrics"
         );
         assert!(!app.show_queue_panel);
     }
@@ -18936,6 +19046,66 @@ mod tests {
         app.search.query = query.into();
         app.actions.push(Action::Search(query.into()));
         app.apply_actions(&egui::Context::default());
+    }
+
+    #[test]
+    fn pressing_enter_in_search_plays_top_result() {
+        let mut app = test_app("search-play-top-result");
+        // Test 1: Results are already loaded when user presses Enter
+        app.search.query = "bohemian".into();
+        app.run_search("bohemian".into());
+        let serial = app.search.serial;
+        let mut results = catalogue_answer();
+        if let Some(tracks) = &mut results.tracks {
+            tracks.items = vec![Track {
+                id: Some("bohemian123".into()),
+                name: "Bohemian Rhapsody".into(),
+                uri: "spotify:track:bohemian123".into(),
+                ..Default::default()
+            }];
+        }
+        app.handle_api(ApiResponse::Search {
+            query: "bohemian".into(),
+            serial,
+            result: Ok(results.clone()),
+        });
+        assert!(app.intent_track.is_none());
+
+        // Press Enter
+        submit_search(&mut app, "bohemian");
+        assert_eq!(
+            app.intent_track.as_ref().map(|t| t.uri.as_str()),
+            Some("spotify:track:bohemian123")
+        );
+
+        // Test 2: Search is in flight when user presses Enter
+        app.intent_track = None;
+        app.search.query = "hotel california".into();
+        submit_search(&mut app, "hotel california");
+        let serial2 = app.search.serial;
+        assert!(app.intent_track.is_none());
+        assert_eq!(app.search.play_top_on_load, Some(serial2));
+
+        if let Some(tracks) = &mut results.tracks {
+            tracks.items = vec![Track {
+                id: Some("hotel456".into()),
+                name: "Hotel California".into(),
+                uri: "spotify:track:hotel456".into(),
+                ..Default::default()
+            }];
+        }
+        app.handle_api(ApiResponse::Search {
+            query: "hotel california".into(),
+            serial: serial2,
+            result: Ok(results),
+        });
+        assert_eq!(
+            app.intent_track.as_ref().map(|t| t.uri.as_str()),
+            Some("spotify:track:hotel456")
+        );
+        assert_eq!(app.search.play_top_on_load, None);
+
+        app.backend.shutdown();
     }
 
     #[test]

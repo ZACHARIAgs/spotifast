@@ -1037,7 +1037,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, transport_
         ui,
         Icon::Mic,
         18.0,
-        if app.show_lyrics_panel {
+        if app.show_lyrics_panel || app.lyrics_fullscreen.is_some() {
             palette.accent
         } else {
             palette.secondary
@@ -1048,6 +1048,25 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, transport_
     .clicked()
     {
         app.actions.push(Action::ToggleLyricsPanel);
+    }
+    let next_left =
+        ui.min_rect().left() - ui.spacing().item_spacing.x - (18.0 + theme::ICON_BUTTON_PAD);
+    if next_left - transport_right >= TRANSPORT_GAP
+        && theme::icon_button(
+            ui,
+            Icon::CirclePlay,
+            18.0,
+            if app.show_now_playing_panel {
+                palette.accent
+            } else {
+                palette.secondary
+            },
+            palette.text,
+            &gettext(app.locale, "Now playing"),
+        )
+        .clicked()
+    {
+        app.actions.push(Action::ToggleNowPlayingPanel);
     }
     // The Listening activity button is the first to go in a narrow window,
     // so it never crowds the transport.

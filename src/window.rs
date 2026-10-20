@@ -220,6 +220,9 @@ pub fn usable_size(size: Option<[f32; 2]>) -> Option<[f32; 2]> {
     size.filter(|size| size[0] >= MAIN_MIN_SIZE[0] && size[1] >= MAIN_MIN_SIZE[1])
 }
 
+/// The main window's default size when no saved geometry is available.
+pub const DEFAULT_MAIN_SIZE: [f32; 2] = [1800.0, 1000.0];
+
 static FIXED_SIZE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Whether the main window keeps one size it was given, as demo shots ask,
@@ -231,6 +234,102 @@ pub fn fixed_size() -> bool {
 /// Pins the main window to the size it is created with.
 pub fn set_fixed_size(on: bool) {
     FIXED_SIZE.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The outer window rectangle Windows gives a maximized window on a monitor
+/// whose work area is `work` `[left, top, right, bottom]` and whose sizing
+/// frame adds `border` `[left, top, right, bottom]` around an empty client
+/// rectangle.
+///
+/// `AdjustWindowRectExForDpi` puts the caption in `border[1]` (`top`), while
+/// a maximized window hangs its sizing border outside `work` on all four
+/// sides and keeps the caption inside `work`. The top sizing border has the
+/// same thickness as the bottom one (`border[3]`).
+#[cfg(any(windows, test))]
+fn maximized_outer_rect(work: [i32; 4], border: [i32; 4]) -> [i32; 4] {
+    [
+        work[0] + border[0],
+        work[1] - border[3],
+        work[2] + border[2],
+        work[3] + border[3],
+    ]
+}
+
+/// Maximizes a hidden Win32 window without showing it.
+///
+/// `ShowWindow(SW_MAXIMIZE)` activates and displays the window even when
+/// `winit` created it hidden (`with_visible(false)`), and `winit` then hides
+/// it again with `ShowWindow(SW_HIDE)`. Calling that before the OpenGL
+/// context exists flashes an unpainted white window on screen. Setting
+/// `WS_MAXIMIZE` and moving the hidden window to the monitor's maximized
+/// rectangle sends `WM_NCCALCSIZE` and `WM_SIZE` (`SIZE_MAXIMIZED`) so
+/// `winit` and `egui` see the maximized geometry on the first frame, while
+/// the window stays hidden until `eframe` reveals it after painting.
+///
+/// # Safety
+/// `hwnd` must be a valid window handle owned by the calling thread, or `0`.
+#[cfg(windows)]
+pub unsafe fn maximize_hidden(hwnd: isize) {
+    use windows_sys::Win32::Foundation::{HWND, RECT};
+    use windows_sys::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
+    };
+    use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_EXSTYLE, GWL_STYLE, GetWindowLongW, GetWindowPlacement, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOZORDER, SetWindowLongW, SetWindowPos, WINDOWPLACEMENT, WS_MAXIMIZE,
+    };
+
+    if hwnd == 0 {
+        return;
+    }
+    let hwnd = hwnd as HWND;
+    // Ask Windows for the placement before setting `WS_MAXIMIZE`, so its
+    // internal checkpoint records the normal restore rectangle that is on
+    // the window now rather than the maximized rectangle set below.
+    let mut placement: WINDOWPLACEMENT = unsafe { std::mem::zeroed() };
+    placement.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+    if unsafe { GetWindowPlacement(hwnd, &mut placement) } == 0 {
+        return;
+    }
+    let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
+    if monitor.is_null() {
+        return;
+    }
+    let mut info: MONITORINFO = unsafe { std::mem::zeroed() };
+    info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+    if unsafe { GetMonitorInfoW(monitor, &mut info) } == 0 {
+        return;
+    }
+    let style = unsafe { GetWindowLongW(hwnd, GWL_STYLE) } as u32;
+    let ex_style = unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) } as u32;
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    let mut border = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    if dpi != 0 {
+        unsafe { AdjustWindowRectExForDpi(&mut border, style, 0, ex_style, dpi) };
+    }
+    let work = info.rcWork;
+    let [left, top, right, bottom] = maximized_outer_rect(
+        [work.left, work.top, work.right, work.bottom],
+        [border.left, border.top, border.right, border.bottom],
+    );
+    unsafe {
+        SetWindowLongW(hwnd, GWL_STYLE, (style | WS_MAXIMIZE) as i32);
+        SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            left,
+            top,
+            right - left,
+            bottom - top,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+    }
 }
 
 #[cfg(test)]
@@ -375,5 +474,68 @@ mod tests {
         for size in [MAIN_MIN_SIZE, [1240.0, 800.0], [1920.0, 1129.0]] {
             assert_eq!(usable_size(Some(size)), Some(size));
         }
+    }
+
+    #[test]
+    fn maximized_outer_rect_hangs_the_sizing_frame_outside_the_work_area() {
+        assert_eq!(
+            maximized_outer_rect([0, 0, 2560, 1392], [-8, -31, 8, 8]),
+            [-8, -8, 2568, 1400]
+        );
+        assert_eq!(
+            maximized_outer_rect([100, 40, 2020, 1080], [0, 0, 0, 0]),
+            [100, 40, 2020, 1080]
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn maximize_hidden_maximizes_without_showing_or_losing_the_restore_rect() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, DestroyWindow, GetWindowPlacement, IsWindowVisible, SW_SHOWMAXIMIZED,
+            WINDOWPLACEMENT, WS_OVERLAPPEDWINDOW,
+        };
+
+        unsafe { maximize_hidden(0) };
+
+        let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+        let hwnd = unsafe {
+            CreateWindowExW(
+                0,
+                class.as_ptr(),
+                std::ptr::null(),
+                WS_OVERLAPPEDWINDOW,
+                120,
+                140,
+                900,
+                600,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+            )
+        };
+        assert!(!hwnd.is_null());
+
+        unsafe { maximize_hidden(hwnd as isize) };
+
+        let visible = unsafe { IsWindowVisible(hwnd) };
+        let mut placement: WINDOWPLACEMENT = unsafe { std::mem::zeroed() };
+        placement.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
+        let ok = unsafe { GetWindowPlacement(hwnd, &mut placement) };
+        unsafe { DestroyWindow(hwnd) };
+
+        assert_eq!(visible, 0, "hidden window must never be shown");
+        assert_ne!(ok, 0);
+        assert_eq!(placement.showCmd, SW_SHOWMAXIMIZED as u32);
+        assert_eq!(
+            [
+                placement.rcNormalPosition.left,
+                placement.rcNormalPosition.top,
+                placement.rcNormalPosition.right,
+                placement.rcNormalPosition.bottom,
+            ],
+            [120, 140, 1020, 740]
+        );
     }
 }

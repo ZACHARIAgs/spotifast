@@ -196,13 +196,13 @@ pub fn open_spotify_url(uri: &str) -> Option<String> {
     Some(format!("https://open.spotify.com/{kind}/{id}"))
 }
 
-/// The menu-bar shape for macOS: the circle with the play triangle punched
+/// The menu-bar shape for macOS: the circle with the three waves punched
 /// out. macOS template images use only the alpha channel and paint the
 /// shape themselves, black in a light menu bar and white in a dark one.
 pub fn tray_template_rgba(size: usize) -> Vec<u8> {
-    let mut rgba = mark_rgba(size, false);
+    let mut rgba = mark_rgba(size);
     for pixel in rgba.as_chunks_mut::<4>().0 {
-        // The triangle is the dark colour; make it a hole instead.
+        // The waves are the dark colour; make them holes instead.
         if pixel[1] < 128 {
             pixel[3] = 0;
         }
@@ -215,11 +215,8 @@ pub fn tray_template_rgba(size: usize) -> Vec<u8> {
 
 /// The mark rasterised to pixels: the window icon, the trays and the logo
 /// drawn in the app (`theme::logo`) all use this one picture.
-///
-/// It is the polished disc of `packaging/icons` at every size: a darker rim
-/// around a lit face.
 pub fn app_icon_rgba(size: usize) -> Vec<u8> {
-    mark_rgba(size, true)
+    mark_rgba(size)
 }
 
 /// Mixes two colours, `t` of the way from `a` to `b`.
@@ -232,74 +229,154 @@ fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     ]
 }
 
-/// How far `p` is from the triangle `a`, `b`, `c`: zero inside it.
-fn triangle_distance(p: (f32, f32), a: (f32, f32), b: (f32, f32), c: (f32, f32)) -> f32 {
-    let edge = |a: (f32, f32), b: (f32, f32)| {
-        let (ex, ey) = (b.0 - a.0, b.1 - a.1);
-        let (px, py) = (p.0 - a.0, p.1 - a.1);
-        let along = ((px * ex + py * ey) / (ex * ex + ey * ey)).clamp(0.0, 1.0);
-        let (dx, dy) = (px - ex * along, py - ey * along);
-        ((dx * dx + dy * dy).sqrt(), ex * py - ey * px)
-    };
-    let (d1, s1) = edge(a, b);
-    let (d2, s2) = edge(b, c);
-    let (d3, s3) = edge(c, a);
-    let inside = (s1 >= 0.0 && s2 >= 0.0 && s3 >= 0.0) || (s1 <= 0.0 && s2 <= 0.0 && s3 <= 0.0);
-    if inside { 0.0 } else { d1.min(d2).min(d3) }
+/// Builds the three curved wave bars from `packaging/icons/spotifast.svg`
+/// (`viewBox="0 0 496 512"`, disc centred at `(248, 256)` with radius `248`).
+fn spotify_waves_path() -> Option<tiny_skia::Path> {
+    struct SvgPen {
+        builder: tiny_skia::PathBuilder,
+        x: f32,
+        y: f32,
+        start_x: f32,
+        start_y: f32,
+        last_c2_x: f32,
+        last_c2_y: f32,
+    }
+    impl SvgPen {
+        fn new() -> Self {
+            Self {
+                builder: tiny_skia::PathBuilder::new(),
+                x: 0.0,
+                y: 0.0,
+                start_x: 0.0,
+                start_y: 0.0,
+                last_c2_x: 0.0,
+                last_c2_y: 0.0,
+            }
+        }
+        fn move_to(&mut self, x: f32, y: f32) {
+            self.builder.move_to(x, y);
+            self.x = x;
+            self.y = y;
+            self.start_x = x;
+            self.start_y = y;
+            self.last_c2_x = x;
+            self.last_c2_y = y;
+        }
+        fn move_by(&mut self, dx: f32, dy: f32) {
+            self.move_to(self.x + dx, self.y + dy);
+        }
+        fn cubic_by(&mut self, dx1: f32, dy1: f32, dx2: f32, dy2: f32, dx: f32, dy: f32) {
+            let (x1, y1) = (self.x + dx1, self.y + dy1);
+            let (x2, y2) = (self.x + dx2, self.y + dy2);
+            let (x, y) = (self.x + dx, self.y + dy);
+            self.builder.cubic_to(x1, y1, x2, y2, x, y);
+            self.last_c2_x = x2;
+            self.last_c2_y = y2;
+            self.x = x;
+            self.y = y;
+        }
+        fn smooth_cubic_by(&mut self, dx2: f32, dy2: f32, dx: f32, dy: f32) {
+            let (x1, y1) = (2.0 * self.x - self.last_c2_x, 2.0 * self.y - self.last_c2_y);
+            let (x2, y2) = (self.x + dx2, self.y + dy2);
+            let (x, y) = (self.x + dx, self.y + dy);
+            self.builder.cubic_to(x1, y1, x2, y2, x, y);
+            self.last_c2_x = x2;
+            self.last_c2_y = y2;
+            self.x = x;
+            self.y = y;
+        }
+        fn close(&mut self) {
+            self.builder.close();
+            self.x = self.start_x;
+            self.y = self.start_y;
+            self.last_c2_x = self.x;
+            self.last_c2_y = self.y;
+        }
+    }
+
+    let mut pen = SvgPen::new();
+    pen.move_to(406.6, 231.1);
+    pen.cubic_by(-5.2, 0.0, -8.4, -1.3, -12.9, -3.9);
+    pen.cubic_by(-71.2, -42.5, -198.5, -52.7, -280.9, -29.7);
+    pen.cubic_by(-3.6, 1.0, -8.1, 2.6, -12.9, 2.6);
+    pen.cubic_by(-13.2, 0.0, -23.3, -10.3, -23.3, -23.6);
+    pen.cubic_by(0.0, -13.6, 8.4, -21.3, 17.4, -23.9);
+    pen.cubic_by(35.2, -10.3, 74.6, -15.2, 117.5, -15.2);
+    pen.cubic_by(73.0, 0.0, 149.5, 15.2, 205.4, 47.8);
+    pen.cubic_by(7.8, 4.5, 12.9, 10.7, 12.9, 22.6);
+    pen.cubic_by(0.0, 13.6, -11.0, 23.3, -23.2, 23.3);
+    pen.close();
+
+    pen.move_by(-31.0, 76.2);
+    pen.cubic_by(-5.2, 0.0, -8.7, -2.3, -12.3, -4.2);
+    pen.cubic_by(-62.5, -37.0, -155.7, -51.9, -238.6, -29.4);
+    pen.cubic_by(-4.8, 1.3, -7.4, 2.6, -11.9, 2.6);
+    pen.cubic_by(-10.7, 0.0, -19.4, -8.7, -19.4, -19.4);
+    pen.smooth_cubic_by(5.2, -17.8, 15.5, -20.7);
+    pen.cubic_by(27.8, -7.8, 56.2, -13.6, 97.8, -13.6);
+    pen.cubic_by(64.9, 0.0, 127.6, 16.1, 177.0, 45.5);
+    pen.cubic_by(8.1, 4.8, 11.3, 11.0, 11.3, 19.7);
+    pen.cubic_by(-0.1, 10.8, -8.5, 19.5, -19.4, 19.5);
+    pen.close();
+
+    pen.move_by(-26.9, 65.6);
+    pen.cubic_by(-4.2, 0.0, -6.8, -1.3, -10.7, -3.6);
+    pen.cubic_by(-62.4, -37.6, -135.0, -39.2, -206.7, -24.5);
+    pen.cubic_by(-3.9, 1.0, -9.0, 2.6, -11.9, 2.6);
+    pen.cubic_by(-9.7, 0.0, -15.8, -7.7, -15.8, -15.8);
+    pen.cubic_by(0.0, -10.3, 6.1, -15.2, 13.6, -16.8);
+    pen.cubic_by(81.9, -18.1, 165.6, -16.5, 237.0, 26.2);
+    pen.cubic_by(6.1, 3.9, 9.7, 7.4, 9.7, 16.5);
+    pen.smooth_cubic_by(-7.1, 15.4, -15.2, 15.4);
+    pen.close();
+
+    pen.builder.finish()
 }
 
-/// The mark on a 128-unit square, as `packaging/icons/spotifast.svg` draws
-/// it: a disc of radius 62 and a play triangle with corners rounded by 5,
-/// set a little left of its box so it looks centred. `polished` adds the
-/// darker rim, the lit face and the bright edge between them.
-fn mark_rgba(size: usize, polished: bool) -> Vec<u8> {
+/// Rasterises `packaging/icons/spotifast.svg` (`#1ed760` disc with three
+/// black wave bars) onto a `size × size` square.
+fn mark_rgba(size: usize) -> Vec<u8> {
     const GREEN: [f32; 3] = [30.0, 215.0, 96.0];
-    const INK: [f32; 3] = [11.0, 14.0, 12.0];
+    const INK: [f32; 3] = [0.0, 0.0, 0.0];
     let mut rgba = vec![0u8; size * size * 4];
-    // The disc keeps two pixels of margin, so its edge is never clipped.
-    let unit = (size as f32 / 2.0 - 2.0) / 62.0;
-    let origin = size as f32 / 2.0 - 64.0 * unit;
+    if size == 0 {
+        return rgba;
+    }
+    let half = size as f32 / 2.0;
+    // Keep two pixels of margin so the disc's anti-aliased edge is never clipped.
+    let radius = (half - 2.0).max(half * 0.9);
+    let scale = radius / 248.0;
+    let mut waves = tiny_skia::Pixmap::new(size as u32, size as u32);
+    if let (Some(pixmap), Some(path)) = (waves.as_mut(), spotify_waves_path()) {
+        let mut paint = tiny_skia::Paint {
+            anti_alias: true,
+            ..tiny_skia::Paint::default()
+        };
+        paint.set_color_rgba8(255, 255, 255, 255);
+        let transform = tiny_skia::Transform::from_translate(-248.0, -256.0)
+            .post_scale(scale, scale)
+            .post_translate(half, half);
+        pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, transform, None);
+    }
     for y in 0..size {
         for x in 0..size {
-            // The pixel's centre in the mark's own units.
-            let u = (x as f32 + 0.5 - origin) / unit;
-            let v = (y as f32 + 0.5 - origin) / unit;
-            let distance = ((u - 64.0).powi(2) + (v - 64.0).powi(2)).sqrt();
-            let coverage = ((62.0 - distance) * unit + 0.5).clamp(0.0, 1.0);
+            let dx = x as f32 + 0.5 - half;
+            let dy = y as f32 + 0.5 - half;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let coverage = (radius - distance + 0.5).clamp(0.0, 1.0);
             if coverage <= 0.0 {
                 continue;
             }
-            let mut colour = if polished {
-                let rim = mix([24.0, 192.0, 85.0], [12.0, 138.0, 58.0], (v - 2.0) / 124.0);
-                let lit = (v - 8.0) / 112.0;
-                let face = if lit < 0.55 {
-                    mix([92.0, 240.0, 149.0], GREEN, lit / 0.55)
-                } else {
-                    mix(GREEN, [21.0, 182.0, 80.0], (lit - 0.55) / 0.45)
-                };
-                let on_face = ((54.4 - distance) * unit + 0.5).clamp(0.0, 1.0);
-                let mut colour = mix(rim, face, on_face);
-                // The bright edge where the face meets the rim: light at
-                // the top, shaded at the bottom.
-                let edge = (1.0 - (distance - 55.0).abs() / 0.9).clamp(0.0, 1.0);
-                let (tone, strength) = if lit < 0.5 {
-                    ([217.0, 255.0, 232.0], 1.0 - 1.3 * lit)
-                } else {
-                    ([10.0, 110.0, 46.0], 0.35 + 1.1 * (lit - 0.5))
-                };
-                colour = mix(colour, tone, edge * strength.clamp(0.0, 1.0));
-                colour
-            } else {
-                GREEN
-            };
-            let triangle = triangle_distance((u, v), (49.2, 43.5), (49.2, 84.5), (86.1, 64.0));
-            let glyph = ((5.0 - triangle) * unit + 0.5).clamp(0.0, 1.0);
-            colour = mix(colour, INK, glyph);
+            let glyph = waves
+                .as_ref()
+                .and_then(|pixmap| pixmap.pixel(x as u32, y as u32))
+                .map_or(0.0, |pixel| pixel.alpha() as f32 / 255.0);
+            let colour = mix(GREEN, INK, glyph);
             let index = (y * size + x) * 4;
             rgba[index] = colour[0].round() as u8;
             rgba[index + 1] = colour[1].round() as u8;
             rgba[index + 2] = colour[2].round() as u8;
-            rgba[index + 3] = (coverage * 255.0) as u8;
+            rgba[index + 3] = (coverage * 255.0).round() as u8;
         }
     }
     rgba
@@ -367,38 +444,30 @@ mod tests {
         ]
     }
 
-    /// The icon wears the polished disc at every size, and the tray
-    /// template keeps its punched-out triangle.
+    /// The icon draws the green disc and three dark waves at every size, and
+    /// the tray template punches the waves out of the disc.
     #[test]
     fn the_icon_is_polished_at_every_size() {
         // #given the icon at a dock size and at a tray size
         let (large, small) = (app_icon_rgba(128), app_icon_rgba(32));
 
-        // #then both have a darker rim around a lighter face
-        let rim = pixel(&large, 128, 64, 6);
-        let face = pixel(&large, 128, 64, 20);
-        assert!(
-            face[1] > rim[1],
-            "face {face:?} should be lighter than rim {rim:?}"
-        );
-        assert!(pixel(&small, 32, 16, 6)[1] > pixel(&small, 32, 16, 2)[1]);
-        // #and a lit top fading to a deeper bottom
-        let low = pixel(&large, 128, 64, 108);
-        assert!(face[1] > low[1]);
+        // #then both have the #1ed760 green disc around the waves
+        assert_eq!(pixel(&large, 128, 64, 16), [30, 215, 96, 255]);
+        assert_eq!(pixel(&small, 32, 16, 4), [30, 215, 96, 255]);
 
-        // #and both carry the dark triangle, a little right of centre
+        // #and both carry the dark wave bars across the centre
         for (icon, size) in [(&large, 128), (&small, 32)] {
-            let centre = pixel(icon, size, size / 2 + size / 16, size / 2);
-            assert!(centre[1] < 40, "triangle missing at {size}: {centre:?}");
+            let centre = pixel(icon, size, size / 2, size / 2);
+            assert!(centre[1] < 100, "wave missing at {size}: {centre:?}");
         }
 
         // #and the corners stay clear
         assert_eq!(pixel(&large, 128, 1, 1)[3], 0);
 
-        // #and the menu-bar template is the disc with the triangle cut out
+        // #and the menu-bar template is the disc with the waves cut out
         let template = tray_template_rgba(44);
-        assert_eq!(pixel(&template, 44, 24, 22)[3], 0);
-        assert_eq!(pixel(&template, 44, 8, 22), [0, 0, 0, 255]);
+        assert_eq!(pixel(&template, 44, 22, 22)[3], 0);
+        assert_eq!(pixel(&template, 44, 22, 6), [0, 0, 0, 255]);
     }
 
     #[test]

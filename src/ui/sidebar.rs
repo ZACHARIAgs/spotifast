@@ -548,7 +548,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let top = 12
         + theme::titlebar_inset(ui.ctx()) as i8
         + super::linux_left_controls_inset(ui.ctx()) as i8;
-    let beside = if app.show_queue_panel || app.show_lyrics_panel || app.show_friends_panel {
+    let beside = if app.show_now_playing_panel
+        || app.show_queue_panel
+        || app.show_lyrics_panel
+        || app.show_friends_panel
+    {
         theme::SIDE_PANEL_MIN_WIDTH
     } else {
         0.0
@@ -1467,6 +1471,23 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     } else {
                         palette.text
                     };
+                    let sb_scale = app.settings.sidebar_font_scale.clamp(0.8, 1.35);
+                    let active_collection = active || current;
+                    let title_font = |size: f32| {
+                        if active_collection {
+                            theme::collection_semibold(size * sb_scale)
+                        } else {
+                            theme::medium(size * sb_scale)
+                        }
+                    };
+                    let sub_font = |size: f32| {
+                        if active_collection {
+                            theme::collection_regular(size * sb_scale)
+                        } else {
+                            theme::regular(size * sb_scale)
+                        }
+                    };
+                    let cover_rad = f32::from(app.settings.cover_radius).min(12.0);
                     let indent = f32::from(entry.depth) * 14.0;
                     if let Some((_, collapsed, _)) = &entry.folder {
                         let chevron = if *collapsed {
@@ -1501,7 +1522,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_right,
                             rect.center().y - if compact { 0.0 } else { 9.0 },
                             &entry.name,
-                            theme::medium(if compact { 13.5 } else { 14.0 }),
+                            title_font(if compact { 13.5 } else { 14.0 }),
                             name_color,
                         );
                         if !compact {
@@ -1511,7 +1532,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                                 text_right,
                                 rect.center().y + 10.0,
                                 &entry.subtitle,
-                                theme::regular(12.5),
+                                sub_font(12.5),
                                 palette.secondary,
                             );
                         }
@@ -1533,7 +1554,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_right,
                             rect.center().y,
                             &entry.name,
-                            theme::medium(13.5),
+                            title_font(13.5),
                             name_color,
                         );
                     } else {
@@ -1545,14 +1566,14 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             Vec2::splat(ROW_ART),
                         );
                         if entry.liked {
-                            liked_cover(ui, cover_rect, 6.0);
+                            liked_cover(ui, cover_rect, cover_rad);
                         } else {
                             super::widgets::paint_cover(
                                 ui,
                                 &palette,
                                 entry.image.as_deref(),
                                 cover_rect,
-                                if entry.round { 22.0 } else { 6.0 },
+                                if entry.round { 22.0 } else { cover_rad },
                                 if entry.round { Icon::User } else { Icon::Music },
                                 Some(app.backend.art()),
                             );
@@ -1574,7 +1595,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_right,
                             rect.center().y - 9.0,
                             &entry.name,
-                            theme::medium(14.0),
+                            title_font(14.0),
                             name_color,
                         );
                         crate::bidi::paint_line(
@@ -1583,7 +1604,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_right,
                             rect.center().y + 10.0,
                             &entry.subtitle,
-                            theme::regular(12.5),
+                            sub_font(12.5),
                             palette.secondary,
                         );
                         // Hovering the art offers to play right from here.

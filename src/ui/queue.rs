@@ -284,7 +284,7 @@ pub fn fullscreen_column(app: &mut App, ui: &mut egui::Ui) {
 }
 
 /// Saves the current and upcoming queue as a playlist.
-fn save_button(
+pub(super) fn save_button(
     ui: &mut egui::Ui,
     palette: &crate::theme::Palette,
     offer: bool,
@@ -303,12 +303,12 @@ fn save_button(
 }
 
 /// Clears manual rows from the active local queue.
-fn clear_button(app: &mut App, ui: &mut egui::Ui) {
+pub(super) fn clear_button(app: &mut App, ui: &mut egui::Ui) -> bool {
     if !app.can_clear_queue() {
-        return;
+        return false;
     }
     let palette = app.palette;
-    if theme::icon_button(
+    let clicked = theme::icon_button(
         ui,
         Icon::Trash,
         18.0,
@@ -316,10 +316,11 @@ fn clear_button(app: &mut App, ui: &mut egui::Ui) {
         palette.text,
         &gettext(app.locale, "Clear queue"),
     )
-    .clicked()
-    {
+    .clicked();
+    if clicked {
         app.actions.push(Action::ClearQueue);
     }
+    clicked
 }
 
 /// A song was dropped on the queue this frame: the primary button was
@@ -339,6 +340,14 @@ fn queue_drop(ui: &egui::Ui, rect: egui::Rect) -> Option<Arc<DragTrack>> {
 const SECTION_GAP: f32 = 14.0;
 
 fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
+    contents_inner(app, ui, compact, true);
+}
+
+pub(super) fn upcoming_contents(app: &mut App, ui: &mut egui::Ui) {
+    contents_inner(app, ui, true, false);
+}
+
+fn contents_inner(app: &mut App, ui: &mut egui::Ui, compact: bool, show_current: bool) {
     let palette = app.palette;
     // Neither the Web API nor librespot can reorder or insert into a live
     // remote queue, so without local playback active every drop just
@@ -380,62 +389,65 @@ fn contents(app: &mut App, ui: &mut egui::Ui, compact: bool) {
             .get()
             .and_then(|queue| queue.currently_playing.clone()),
     };
-    // Where the songs come from, above the song itself. A radio has no
-    // page, so its name is plain text.
-    if let Some(from) = app.playing_from().filter(|_| current.is_some()) {
-        ui.horizontal(|ui| {
-            theme::text(
-                ui,
-                gettext(app.locale, "Playing from"),
-                theme::regular(13.0),
-                palette.secondary,
-            );
-            match from.page {
-                Some(page) => {
-                    if theme::link(ui, from.name, theme::semibold(13.0), palette.text).clicked() {
-                        app.actions.push(Action::Open(page));
+    if show_current {
+        // Where the songs come from, above the song itself. A radio has no
+        // page, so its name is plain text.
+        if let Some(from) = app.playing_from().filter(|_| current.is_some()) {
+            ui.horizontal(|ui| {
+                theme::text(
+                    ui,
+                    gettext(app.locale, "Playing from"),
+                    theme::regular(13.0),
+                    palette.secondary,
+                );
+                match from.page {
+                    Some(page) => {
+                        if theme::link(ui, from.name, theme::semibold(13.0), palette.text).clicked()
+                        {
+                            app.actions.push(Action::Open(page));
+                        }
+                    }
+                    None => {
+                        theme::text(ui, from.name, theme::semibold(13.0), palette.text);
                     }
                 }
-                None => {
-                    theme::text(ui, from.name, theme::semibold(13.0), palette.text);
-                }
-            }
-        });
-        ui.add_space(10.0);
-    }
-    if let Some(current) = current.as_ref() {
-        theme::text(
-            ui,
-            gettext(app.locale, "Now playing"),
-            theme::semibold(14.0),
-            palette.text,
-        );
-        ui.add_space(4.0);
-        let context = RowContext::Uris(Arc::from([current.uri().to_string()]));
-        widgets::track_row(
-            ui,
-            app,
-            TrackRow {
-                index: 0,
-                number: Some(1),
-                item: current,
-                context: &context,
-                show_cover: true,
-                show_album: !compact,
-                added_at: None,
-                added_by: None,
-                show_added_by: false,
-                show_plays: false,
-                compact,
-                thin: false,
-                shift: 0.0,
-                picked: false,
-                picked_songs: &[],
-                picked_positions: &[],
-                position: None,
-            },
-        );
-        ui.add_space(SECTION_GAP);
+            });
+            ui.add_space(10.0);
+        }
+        if let Some(current) = current.as_ref() {
+            theme::text(
+                ui,
+                gettext(app.locale, "Now playing"),
+                theme::semibold(14.0),
+                palette.text,
+            );
+            ui.add_space(4.0);
+            let context = RowContext::Uris(Arc::from([current.uri().to_string()]));
+            widgets::track_row(
+                ui,
+                app,
+                TrackRow {
+                    index: 0,
+                    number: Some(1),
+                    item: current,
+                    context: &context,
+                    show_cover: true,
+                    show_album: !compact,
+                    added_at: None,
+                    added_by: None,
+                    show_added_by: false,
+                    show_plays: false,
+                    compact,
+                    thin: false,
+                    shift: 0.0,
+                    picked: false,
+                    picked_songs: &[],
+                    picked_positions: &[],
+                    position: None,
+                },
+            );
+            ui.add_space(SECTION_GAP);
+        }
     }
     if queue_is_empty(app) {
         // Nothing queued at all yet: the only slot a drop could land on is

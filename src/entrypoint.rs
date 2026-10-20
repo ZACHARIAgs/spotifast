@@ -637,6 +637,19 @@ pub(crate) fn run() -> eframe::Result<()> {
         let options = native_options(false, mini, None, geometry);
         let options = profile_options(options);
         #[cfg(windows)]
+        let start_maximized = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        #[cfg(windows)]
+        let options = {
+            let mut options = options;
+            let start_maximized = start_maximized.clone();
+            options.window_builder = Some(Box::new(move |viewport| {
+                let (viewport, maximized) = take_startup_maximized(viewport, geometry);
+                start_maximized.store(maximized, std::sync::atomic::Ordering::Relaxed);
+                viewport
+            }));
+            options
+        };
+        #[cfg(windows)]
         let thumbbar_enabled = desktop_surfaces && options.viewport.taskbar != Some(false);
         #[cfg(target_os = "linux")]
         let hide_from_taskbar = options.viewport.taskbar == Some(false);
@@ -697,15 +710,26 @@ pub(crate) fn run() -> eframe::Result<()> {
                 let thumbbar = {
                     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
                     let mut toolbar = spotifast::thumbbar::ThumbBar::new();
-                    if thumbbar_enabled
-                        && let Ok(handle) = cc.window_handle()
+                    if let Ok(handle) = cc.window_handle()
                         && let RawWindowHandle::Win32(window) = handle.as_raw()
                     {
-                        let wake = creator_waker.clone();
-                        // The shell and toolbar share this window's thread
-                        // and lifetime; the toolbar is detached on shell
-                        // drop.
-                        unsafe { toolbar.attach(window.hwnd.get(), move || wake.wake()) };
+                        if start_maximized.load(std::sync::atomic::Ordering::Relaxed) {
+                            unsafe { spotifast::window::maximize_hidden(window.hwnd.get()) };
+                            cc.egui_ctx.input_mut(|input| {
+                                if let Some(info) =
+                                    input.raw.viewports.get_mut(&egui::ViewportId::ROOT)
+                                {
+                                    info.maximized = Some(true);
+                                }
+                            });
+                        }
+                        if thumbbar_enabled {
+                            let wake = creator_waker.clone();
+                            // The shell and toolbar share this window's thread
+                            // and lifetime; the toolbar is detached on shell
+                            // drop.
+                            unsafe { toolbar.attach(window.hwnd.get(), move || wake.wake()) };
+                        }
                     }
                     toolbar
                 };
@@ -894,7 +918,7 @@ fn native_options(
             .apply(viewport)
         }
         None => {
-            let size = inner_size.unwrap_or([1240.0, 800.0]);
+            let size = inner_size.unwrap_or(spotifast::window::DEFAULT_MAIN_SIZE);
             let viewport = viewport
                 // macOS: no title bar strip above the app. The content runs to
                 // the top edge and the traffic lights float over it, the way
@@ -932,6 +956,45 @@ fn profile_options(mut options: eframe::NativeOptions) -> eframe::NativeOptions 
         options.persistence_path = eframe::storage_dir("spotifast").map(|dir| dir.join("app.ron"));
     }
     options
+}
+
+fn is_valid_main_size(width: f32, height: f32) -> bool {
+    width >= spotifast::window::MAIN_MIN_SIZE[0] && height >= spotifast::window::MAIN_MIN_SIZE[1]
+}
+
+/// Strips `maximized: Some(true)` from a startup [`egui::ViewportBuilder`]
+/// so `winit` and `egui-winit` do not call `ShowWindow(SW_MAXIMIZE)` on the
+/// hidden window before OpenGL is initialized (which flashes an unpainted
+/// white window twice on Windows), enforces that the main window always opens
+/// at a usable size (restoring its last known size or defaulting to
+/// [`spotifast::window::DEFAULT_MAIN_SIZE`] rather than a tiny frame), and
+/// prepares the unmaximized restore geometry.
+#[cfg(any(windows, test))]
+fn take_startup_maximized(
+    mut viewport: egui::ViewportBuilder,
+    geometry: Geometry,
+) -> (egui::ViewportBuilder, bool) {
+    let maximized = viewport.maximized == Some(true);
+    viewport.maximized = None;
+    if viewport.max_inner_size.is_none() {
+        let target_size = geometry
+            .size
+            .filter(|&[w, h]| is_valid_main_size(w, h))
+            .or_else(|| {
+                viewport
+                    .inner_size
+                    .filter(|size| is_valid_main_size(size.x, size.y))
+                    .map(|size| [size.x, size.y])
+            })
+            .unwrap_or(spotifast::window::DEFAULT_MAIN_SIZE);
+        viewport.inner_size = Some(target_size.into());
+        viewport.min_inner_size = Some(spotifast::window::MAIN_MIN_SIZE.into());
+        viewport.position = geometry
+            .position
+            .map(egui::Pos2::from)
+            .or(viewport.position);
+    }
+    (viewport, maximized)
 }
 
 #[cfg(any(test, feature = "demo"))]
@@ -1035,7 +1098,7 @@ mod native_window_tests {
         assert_eq!(options.viewport.maximized, Some(true));
 
         let fresh = native_options(false, None, None, Geometry::default());
-        assert_eq!(fresh.viewport.inner_size, Some(egui::vec2(1240.0, 800.0)));
+        assert_eq!(fresh.viewport.inner_size, Some(egui::vec2(1800.0, 1000.0)));
         assert_eq!(fresh.viewport.position, None);
         assert_eq!(fresh.viewport.maximized, None);
 
@@ -1279,6 +1342,72 @@ mod native_window_tests {
     fn only_windows_removes_the_native_frame() {
         assert!(!main_window_decorated(true));
         assert!(main_window_decorated(false));
+    }
+
+    #[test]
+    fn startup_maximize_is_deferred_and_keeps_normal_restore_geometry() {
+        let geometry = Geometry {
+            size: Some([1240.0, 800.0]),
+            position: Some([325.0, 224.0]),
+            maximized: true,
+        };
+        // Simulate eframe's WindowSettings::initialize_viewport_builder
+        // overwriting the normal geometry with the maximized monitor frame.
+        let mut viewport = native_options(false, None, None, geometry).viewport;
+        viewport.inner_size = Some(egui::vec2(2560.0, 1392.0));
+        viewport.position = Some(egui::pos2(-8.0, -8.0));
+        viewport.maximized = Some(true);
+
+        let (viewport, maximized) = take_startup_maximized(viewport, geometry);
+        assert!(maximized);
+        assert_eq!(viewport.maximized, None);
+        assert_eq!(viewport.inner_size, Some(egui::vec2(1240.0, 800.0)));
+        assert_eq!(viewport.position, Some(egui::pos2(325.0, 224.0)));
+
+        let normal = Geometry {
+            maximized: false,
+            ..geometry
+        };
+        let (unmaximized, was_maximized) =
+            take_startup_maximized(native_options(false, None, None, normal).viewport, normal);
+        assert!(!was_maximized);
+        assert_eq!(unmaximized.maximized, None);
+        assert_eq!(unmaximized.inner_size, Some(egui::vec2(1240.0, 800.0)));
+        assert_eq!(unmaximized.position, Some(egui::pos2(325.0, 224.0)));
+    }
+
+    #[test]
+    fn tiny_or_fresh_startup_windows_default_to_sane_geometry() {
+        let fresh_viewport = native_options(false, None, None, Geometry::default()).viewport;
+        let (fresh, maximized) =
+            take_startup_maximized(fresh_viewport.clone(), Geometry::default());
+        assert!(!maximized);
+        assert_eq!(fresh.inner_size, Some(egui::vec2(1800.0, 1000.0)));
+        assert_eq!(fresh.min_inner_size, Some(egui::vec2(760.0, 520.0)));
+
+        let mut tiny_viewport = fresh_viewport.clone();
+        tiny_viewport.inner_size = Some(egui::vec2(100.0, 200.0));
+        let (sanitized, _) = take_startup_maximized(tiny_viewport, Geometry::default());
+        assert_eq!(sanitized.inner_size, Some(egui::vec2(1800.0, 1000.0)));
+        assert_eq!(sanitized.min_inner_size, Some(egui::vec2(760.0, 520.0)));
+
+        let remembered = Geometry {
+            size: Some([1400.0, 900.0]),
+            position: Some([120.0, 100.0]),
+            maximized: false,
+        };
+        let mut tiny_with_remembered = fresh_viewport;
+        tiny_with_remembered.inner_size = Some(egui::vec2(100.0, 200.0));
+        let (sanitized_with_remembered, _) =
+            take_startup_maximized(tiny_with_remembered, remembered);
+        assert_eq!(
+            sanitized_with_remembered.inner_size,
+            Some(egui::vec2(1400.0, 900.0))
+        );
+        assert_eq!(
+            sanitized_with_remembered.position,
+            Some(egui::pos2(120.0, 100.0))
+        );
     }
 }
 
