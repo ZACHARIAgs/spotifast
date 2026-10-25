@@ -443,14 +443,55 @@ pub struct Settings {
     /// succeeds. This flag is only in memory and is never persisted.
     #[serde(skip)]
     pub proxy_password_legacy: bool,
-    /// Custom font family for active playlists and albums (hero title, header
-    /// metadata, track rows, and the active sidebar entry). `None` uses the
-    /// default interface font.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub collection_font: Option<String>,
-    /// Custom font family override for the entire interface. `None` uses Inter.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ui_font: Option<String>,
+    /// Base UI font family for text fields, track lists, queue, and body text. `None` uses Inter.
+    #[serde(default, alias = "ui_font", skip_serializing_if = "Option::is_none")]
+    pub base_ui_font: Option<String>,
+    /// Header font family for section titles, hero headings, tabs, and titles. `None` inherits Base UI font.
+    #[serde(
+        default,
+        alias = "collection_font",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub header_ui_font: Option<String>,
+    /// Use Header font for Sidebar navigation tabs (Home, Search, Library).
+    #[serde(default = "default_true")]
+    pub font_sidebar_nav: bool,
+    /// Use Header font for Collection hero titles (Albums, Playlists, Artists, Shows).
+    #[serde(default = "default_true")]
+    pub font_collection_titles: bool,
+    /// Use Header font for Home & Search shelf headers.
+    #[serde(default = "default_true")]
+    pub font_shelf_headers: bool,
+    /// Use Header font for Artist & Show section headers ("Popular", "Discography", etc.).
+    #[serde(default = "default_true")]
+    pub font_section_headers: bool,
+    /// Use Header font for Now Playing top context ("Playing from...").
+    #[serde(default = "default_true")]
+    pub font_now_playing_context: bool,
+    /// Use Header font for Now Playing card headers ("Lyrics", "Queue").
+    #[serde(default = "default_true")]
+    pub font_now_playing_cards: bool,
+    /// Use Header font for Queue section headers ("Next up", "Recently played").
+    #[serde(default)]
+    pub font_queue_headers: bool,
+    /// Use Header font for Now Playing panel song title.
+    #[serde(default)]
+    pub font_now_playing_track: bool,
+    /// Use Header font for Bottom player bar song title.
+    #[serde(default)]
+    pub font_player_bar_track: bool,
+    /// Use Header font for Fullscreen view song title.
+    #[serde(default)]
+    pub font_fullscreen_track: bool,
+    /// Use Header font for Track list rows.
+    #[serde(default)]
+    pub font_tracklist_rows: bool,
+    /// Use Header font for Sidebar library rows.
+    #[serde(default)]
+    pub font_sidebar_rows: bool,
+    /// Use Header font for Dialogs and topbar navigation titles.
+    #[serde(default)]
+    pub font_dialogs: bool,
     /// Scale factor for playlist and album hero titles (`0.6..=1.5`).
     pub collection_title_scale: f32,
     /// Scale factor for track list text (`0.75..=1.4`).
@@ -577,8 +618,21 @@ impl Default for Settings {
             proxy_username: String::new(),
             proxy_password: String::new(),
             proxy_password_legacy: false,
-            collection_font: None,
-            ui_font: None,
+            base_ui_font: None,
+            header_ui_font: None,
+            font_sidebar_nav: true,
+            font_collection_titles: true,
+            font_shelf_headers: true,
+            font_section_headers: true,
+            font_now_playing_context: true,
+            font_now_playing_cards: true,
+            font_queue_headers: false,
+            font_now_playing_track: false,
+            font_player_bar_track: false,
+            font_fullscreen_track: false,
+            font_tracklist_rows: false,
+            font_sidebar_rows: false,
+            font_dialogs: false,
             collection_title_scale: 1.0,
             tracklist_font_scale: 1.0,
             tracklist_row_scale: 1.0,
@@ -603,9 +657,7 @@ fn default_buffer_ms() -> u32 {
 
 impl Settings {
     pub fn has_customizations(&self) -> bool {
-        self.collection_font.is_some()
-            || self.ui_font.is_some()
-            || (self.collection_title_scale - 1.0).abs() > 0.005
+        (self.collection_title_scale - 1.0).abs() > 0.005
             || (self.tracklist_font_scale - 1.0).abs() > 0.005
             || (self.tracklist_row_scale - 1.0).abs() > 0.005
             || (self.sidebar_font_scale - 1.0).abs() > 0.005
@@ -617,8 +669,6 @@ impl Settings {
     }
 
     pub fn reset_customizations(&mut self) {
-        self.collection_font = None;
-        self.ui_font = None;
         self.collection_title_scale = 1.0;
         self.tracklist_font_scale = 1.0;
         self.tracklist_row_scale = 1.0;
@@ -628,6 +678,42 @@ impl Settings {
         self.header_tint_strength = 1.0;
         self.now_playing_show_lyrics = true;
         self.now_playing_show_queue = true;
+    }
+
+    pub fn has_font_customizations(&self) -> bool {
+        self.base_ui_font.is_some()
+            || self.header_ui_font.is_some()
+            || !self.font_sidebar_nav
+            || !self.font_collection_titles
+            || !self.font_shelf_headers
+            || !self.font_section_headers
+            || !self.font_now_playing_context
+            || !self.font_now_playing_cards
+            || self.font_queue_headers
+            || self.font_now_playing_track
+            || self.font_player_bar_track
+            || self.font_fullscreen_track
+            || self.font_tracklist_rows
+            || self.font_sidebar_rows
+            || self.font_dialogs
+    }
+
+    pub fn reset_font_customizations(&mut self) {
+        self.base_ui_font = None;
+        self.header_ui_font = None;
+        self.font_sidebar_nav = true;
+        self.font_collection_titles = true;
+        self.font_shelf_headers = true;
+        self.font_section_headers = true;
+        self.font_now_playing_context = true;
+        self.font_now_playing_cards = true;
+        self.font_queue_headers = false;
+        self.font_now_playing_track = false;
+        self.font_player_bar_track = false;
+        self.font_fullscreen_track = false;
+        self.font_tracklist_rows = false;
+        self.font_sidebar_rows = false;
+        self.font_dialogs = false;
     }
     /// The local files folder, when one is set.
     pub fn local_files_folder(&self) -> Option<std::path::PathBuf> {
@@ -2045,5 +2131,47 @@ mod session_tests {
         );
         assert!(crate::util::temporary_files(path.parent().unwrap()).is_empty());
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn font_settings_backward_compatibility_and_defaults() {
+        use super::Settings;
+        // Deserializing legacy fields ui_font and collection_font
+        let legacy: Settings = serde_json::from_value(serde_json::json!({
+            "ui_font": "Roboto",
+            "collection_font": "Playfair Display"
+        }))
+        .unwrap();
+        assert_eq!(legacy.base_ui_font.as_deref(), Some("Roboto"));
+        assert_eq!(legacy.header_ui_font.as_deref(), Some("Playfair Display"));
+
+        // Default font toggles match specification
+        let defaults = Settings::default();
+        assert_eq!(defaults.base_ui_font, None);
+        assert_eq!(defaults.header_ui_font, None);
+        assert!(defaults.font_sidebar_nav);
+        assert!(defaults.font_collection_titles);
+        assert!(defaults.font_shelf_headers);
+        assert!(defaults.font_section_headers);
+        assert!(defaults.font_now_playing_context);
+        assert!(defaults.font_now_playing_cards);
+        assert!(!defaults.font_queue_headers);
+        assert!(!defaults.font_now_playing_track);
+        assert!(!defaults.font_player_bar_track);
+        assert!(!defaults.font_fullscreen_track);
+        assert!(!defaults.font_tracklist_rows);
+        assert!(!defaults.font_sidebar_rows);
+        assert!(!defaults.font_dialogs);
+        assert!(!defaults.has_font_customizations());
+
+        // Customization check and reset
+        let mut customized = defaults.clone();
+        customized.header_ui_font = Some("Futura".into());
+        customized.font_dialogs = true;
+        assert!(customized.has_font_customizations());
+        customized.reset_font_customizations();
+        assert!(!customized.has_font_customizations());
+        assert_eq!(customized.header_ui_font, None);
+        assert!(!customized.font_dialogs);
     }
 }

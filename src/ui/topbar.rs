@@ -448,7 +448,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
                             ui.add_space(10.0);
-                            theme::text(ui, &name, theme::semibold(14.0), palette.text);
+                            theme::text(
+                                ui,
+                                &name,
+                                theme::font_semibold(app.settings.font_dialogs, 14.0),
+                                palette.text,
+                            );
                         });
                         if let Some(product) =
                             app.user.as_ref().and_then(|user| user.product.clone())

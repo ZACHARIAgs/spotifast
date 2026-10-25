@@ -252,6 +252,8 @@ pub fn titlebar_inset(ctx: &egui::Context) -> f32 {
     }
 }
 
+static CUSTOM_HEADER_FONT_ACTIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 static CUSTOM_COLLECTION_FONT_ACTIVE: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
@@ -271,36 +273,84 @@ pub fn bold(size: f32) -> egui::FontId {
     fastframe_fonts::Weight::Bold.font_id(size)
 }
 
-pub fn collection_regular(size: f32) -> egui::FontId {
-    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
-        egui::FontId::new(size, egui::FontFamily::Name("collection-regular".into()))
+pub fn header_regular(size: f32) -> egui::FontId {
+    if CUSTOM_HEADER_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("header-regular".into()))
     } else {
         regular(size)
     }
 }
 
-pub fn collection_medium(size: f32) -> egui::FontId {
-    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
-        egui::FontId::new(size, egui::FontFamily::Name("collection-regular".into()))
+pub fn header_medium(size: f32) -> egui::FontId {
+    if CUSTOM_HEADER_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("header-regular".into()))
     } else {
         medium(size)
     }
 }
 
-pub fn collection_semibold(size: f32) -> egui::FontId {
-    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
-        egui::FontId::new(size, egui::FontFamily::Name("collection-bold".into()))
+pub fn header_semibold(size: f32) -> egui::FontId {
+    if CUSTOM_HEADER_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("header-bold".into()))
     } else {
         semibold(size)
     }
 }
 
-pub fn collection_bold(size: f32) -> egui::FontId {
-    if CUSTOM_COLLECTION_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
-        egui::FontId::new(size, egui::FontFamily::Name("collection-bold".into()))
+pub fn header_bold(size: f32) -> egui::FontId {
+    if CUSTOM_HEADER_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        egui::FontId::new(size, egui::FontFamily::Name("header-bold".into()))
     } else {
         bold(size)
     }
+}
+
+pub fn font_bold(use_header: bool, size: f32) -> egui::FontId {
+    if use_header {
+        header_bold(size)
+    } else {
+        bold(size)
+    }
+}
+
+pub fn font_semibold(use_header: bool, size: f32) -> egui::FontId {
+    if use_header {
+        header_semibold(size)
+    } else {
+        semibold(size)
+    }
+}
+
+pub fn font_medium(use_header: bool, size: f32) -> egui::FontId {
+    if use_header {
+        header_medium(size)
+    } else {
+        medium(size)
+    }
+}
+
+pub fn font_regular(use_header: bool, size: f32) -> egui::FontId {
+    if use_header {
+        header_regular(size)
+    } else {
+        regular(size)
+    }
+}
+
+pub fn collection_regular(size: f32) -> egui::FontId {
+    header_regular(size)
+}
+
+pub fn collection_medium(size: f32) -> egui::FontId {
+    header_medium(size)
+}
+
+pub fn collection_semibold(size: f32) -> egui::FontId {
+    header_semibold(size)
+}
+
+pub fn collection_bold(size: f32) -> egui::FontId {
+    header_bold(size)
 }
 
 /// How the desktop renders text, read once per process.
@@ -461,11 +511,14 @@ fn install_fonts(ctx: &egui::Context) {
     ctx.set_fonts(base_font_definitions());
 }
 
-/// Synchronizes custom interface and collection (playlist/album) fonts when
-/// `settings.ui_font` or `settings.collection_font` changes.
+/// Synchronizes custom base UI and header fonts when
+/// `settings.base_ui_font` or `settings.header_ui_font` changes.
 pub fn sync_custom_fonts(ctx: &egui::Context, settings: &crate::settings::Settings) {
     let key_id = egui::Id::new("applied-custom-fonts");
-    let wanted = (settings.ui_font.clone(), settings.collection_font.clone());
+    let wanted = (
+        settings.base_ui_font.clone(),
+        settings.header_ui_font.clone(),
+    );
     let current = ctx.data(|data| data.get_temp::<(Option<String>, Option<String>)>(key_id));
     if current.as_ref() == Some(&wanted) {
         return;
@@ -525,10 +578,11 @@ pub fn sync_custom_fonts(ctx: &egui::Context, settings: &crate::settings::Settin
         }
     }
 
-    let mut coll_active = false;
-    let effective_coll = wanted.1.as_deref().or(wanted.0.as_deref());
-    if let Some(coll_family) = effective_coll
-        && let Some((reg, bold)) = crate::system_fonts::load_family_faces(coll_family)
+    let mut header_active = false;
+    // When Header font is None (Default), fall back to Base UI font:
+    let effective_header = wanted.1.as_deref().or(wanted.0.as_deref());
+    if let Some(header_family) = effective_header
+        && let Some((reg, bold)) = crate::system_fonts::load_family_faces(header_family)
     {
         let reg_data = std::sync::Arc::new(egui::FontData {
             font: std::borrow::Cow::Owned(reg.bytes),
@@ -545,25 +599,34 @@ pub fn sync_custom_fonts(ctx: &egui::Context, settings: &crate::settings::Settin
         };
         fonts
             .font_data
-            .insert("custom_collection_regular".to_owned(), reg_data);
+            .insert("custom_header_regular".to_owned(), reg_data);
         fonts
             .font_data
-            .insert("custom_collection_bold".to_owned(), bold_data);
+            .insert("custom_header_bold".to_owned(), bold_data);
 
-        let mut reg_fam = vec!["custom_collection_regular".to_owned()];
+        let mut reg_fam = vec!["custom_header_regular".to_owned()];
         reg_fam.extend(fallback_list.iter().cloned());
-        let mut bold_fam = vec!["custom_collection_bold".to_owned()];
+        let mut bold_fam = vec!["custom_header_bold".to_owned()];
         bold_fam.extend(fallback_list);
 
+        fonts.families.insert(
+            egui::FontFamily::Name("header-regular".into()),
+            reg_fam.clone(),
+        );
+        fonts.families.insert(
+            egui::FontFamily::Name("header-bold".into()),
+            bold_fam.clone(),
+        );
         fonts
             .families
             .insert(egui::FontFamily::Name("collection-regular".into()), reg_fam);
         fonts
             .families
             .insert(egui::FontFamily::Name("collection-bold".into()), bold_fam);
-        coll_active = true;
+        header_active = true;
     }
-    CUSTOM_COLLECTION_FONT_ACTIVE.store(coll_active, std::sync::atomic::Ordering::Relaxed);
+    CUSTOM_HEADER_FONT_ACTIVE.store(header_active, std::sync::atomic::Ordering::Relaxed);
+    CUSTOM_COLLECTION_FONT_ACTIVE.store(header_active, std::sync::atomic::Ordering::Relaxed);
     text_rendering().apply_to(&mut fonts);
     ctx.set_fonts(fonts);
 }
@@ -1151,6 +1214,15 @@ pub fn section_title(ui: &mut egui::Ui, palette: &Palette, label: &str) -> Respo
     text(ui, label, bold(17.0), palette.text)
 }
 
+pub fn section_title_with_font(
+    ui: &mut egui::Ui,
+    palette: &Palette,
+    label: &str,
+    use_header: bool,
+) -> Response {
+    text(ui, label, font_bold(use_header, 17.0), palette.text)
+}
+
 pub fn subtle(ui: &mut egui::Ui, palette: &Palette, label: &str) -> Response {
     text(ui, label, regular(13.0), palette.secondary)
 }
@@ -1442,5 +1514,17 @@ mod tests {
             5.0 + interval,
             "after a pause"
         );
+    }
+
+    #[test]
+    fn font_family_selection_helpers() {
+        assert_eq!(font_bold(true, 16.0), header_bold(16.0));
+        assert_eq!(font_bold(false, 16.0), bold(16.0));
+        assert_eq!(font_semibold(true, 15.0), header_semibold(15.0));
+        assert_eq!(font_semibold(false, 15.0), semibold(15.0));
+        assert_eq!(font_medium(true, 14.0), header_medium(14.0));
+        assert_eq!(font_medium(false, 14.0), medium(14.0));
+        assert_eq!(font_regular(true, 13.0), header_regular(13.0));
+        assert_eq!(font_regular(false, 13.0), regular(13.0));
     }
 }

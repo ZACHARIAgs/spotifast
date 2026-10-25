@@ -29,7 +29,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             artist_actions(app, ui, artist);
 
             // Popular.
-            theme::section_title(ui, &palette, &gettext(locale, "Popular"));
+            theme::section_title_with_font(
+                ui,
+                &palette,
+                &gettext(locale, "Popular"),
+                app.settings.font_section_headers,
+            );
             ui.add_space(4.0);
             match &page.top_tracks {
                 Loadable::Loaded(tracks) if !tracks.is_empty() => {
@@ -112,7 +117,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             ui.add_space(20.0);
 
             // Discography.
-            theme::section_title(ui, &palette, &gettext(locale, "Discography"));
+            theme::section_title_with_font(
+                ui,
+                &palette,
+                &gettext(locale, "Discography"),
+                app.settings.font_section_headers,
+            );
             ui.add_space(6.0);
             let labels: Vec<_> = DiscographyFilter::ALL
                 .iter()
@@ -220,49 +230,56 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             {
                 let artist_label = gettext(locale, "Artist");
                 let title = gettext(locale, "Fans also like");
-                widgets::shelf(ui, &palette, "related", &title, |ui| {
-                    for artist in related {
-                        let context_here =
-                            app.playing_context_uri().as_deref() == Some(artist.uri.as_str());
-                        let playing_here = context_here && app.believed_playing();
-                        let card_art = app.art_px(widgets::CARD_ART);
-                        let card = widgets::card(
-                            ui,
-                            app,
-                            pick_image(&artist.images, card_art),
-                            &artist.name,
-                            &artist_label,
-                            widgets::CardCover::portrait(playing_here),
-                        );
-                        if card.play {
-                            if context_here {
-                                app.actions.push(Action::TogglePlay);
-                            } else {
-                                app.actions.push(Action::PlayContext {
-                                    uri: artist.uri.clone(),
-                                    offset_uri: None,
-                                    offset_index: None,
-                                });
+                widgets::shelf(
+                    ui,
+                    &palette,
+                    "related",
+                    &title,
+                    app.settings.font_section_headers,
+                    |ui| {
+                        for artist in related {
+                            let context_here =
+                                app.playing_context_uri().as_deref() == Some(artist.uri.as_str());
+                            let playing_here = context_here && app.believed_playing();
+                            let card_art = app.art_px(widgets::CARD_ART);
+                            let card = widgets::card(
+                                ui,
+                                app,
+                                pick_image(&artist.images, card_art),
+                                &artist.name,
+                                &artist_label,
+                                widgets::CardCover::portrait(playing_here),
+                            );
+                            if card.play {
+                                if context_here {
+                                    app.actions.push(Action::TogglePlay);
+                                } else {
+                                    app.actions.push(Action::PlayContext {
+                                        uri: artist.uri.clone(),
+                                        offset_uri: None,
+                                        offset_index: None,
+                                    });
+                                }
                             }
+                            if card.clicked {
+                                app.actions
+                                    .push(Action::Open(Page::Artist(artist.id.clone())));
+                            }
+                            egui::Popup::context_menu(&card.response)
+                                .id(ui.make_persistent_id(("related-artist-menu", &artist.uri)))
+                                .frame(widgets::menu_frame(&palette))
+                                .show(|ui| {
+                                    widgets::context_menu_items(
+                                        ui,
+                                        app,
+                                        &artist.uri,
+                                        &artist.name,
+                                        None,
+                                    )
+                                });
                         }
-                        if card.clicked {
-                            app.actions
-                                .push(Action::Open(Page::Artist(artist.id.clone())));
-                        }
-                        egui::Popup::context_menu(&card.response)
-                            .id(ui.make_persistent_id(("related-artist-menu", &artist.uri)))
-                            .frame(widgets::menu_frame(&palette))
-                            .show(|ui| {
-                                widgets::context_menu_items(
-                                    ui,
-                                    app,
-                                    &artist.uri,
-                                    &artist.name,
-                                    None,
-                                )
-                            });
-                    }
-                });
+                    },
+                );
             }
         }
         Loadable::Loading | Loadable::NotLoaded => {

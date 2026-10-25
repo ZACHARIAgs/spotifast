@@ -6223,10 +6223,9 @@ impl App {
             .and_then(|page| page.items.first())
             .filter(|track| track.uri == uri)
             .cloned()
+            && let Some(id) = &track.id
         {
-            if let Some(id) = &track.id {
-                self.track_cache.insert(id.clone(), track);
-            }
+            self.track_cache.insert(id.clone(), track);
         }
         if uri.starts_with("spotify:track:") || uri.starts_with("spotify:episode:") {
             let request = PlayRequest::tracks(vec![uri]).starting_at_index(0);
@@ -7878,10 +7877,10 @@ impl App {
                         self.search.results = Loadable::Loaded(results);
                         self.search.results_serial = serial;
                         self.show_search_playlists();
-                        if self.search.play_top_on_load == Some(serial) {
-                            if self.play_top_search_result() || !self.search.playlists_pending {
-                                self.search.play_top_on_load = None;
-                            }
+                        if self.search.play_top_on_load == Some(serial)
+                            && (self.play_top_search_result() || !self.search.playlists_pending)
+                        {
+                            self.search.play_top_on_load = None;
                         }
                     }
                     Err(error) => self.search_failed(&gettext(self.locale, "Search"), error),
@@ -13669,6 +13668,7 @@ mod tests {
                         &app.palette,
                         "wheel-test-shelf",
                         "Shelf",
+                        true,
                         |ui| {
                             shelf_left = ui.allocate_space(egui::vec2(1600.0, 100.0)).1.left();
                         },

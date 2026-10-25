@@ -41,7 +41,12 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                 // Drawn by cover_art above.
                 Dialog::CoverArt { .. } => {}
                 Dialog::PersonalAppIntro => {
-                    theme::text(ui, gettext(locale, "Spend less time waiting for Spotify"), theme::bold(20.0), palette.text);
+                    theme::text(
+                        ui,
+                        gettext(locale, "Spend less time waiting for Spotify"),
+                        theme::font_bold(app.settings.font_dialogs, 20.0),
+                        palette.text,
+                    );
                     ui.add_space(12.0);
                     for text in [
                         gettext(locale, "Spotifast's default connection shares Spotify's request limit with other listeners. When it gets busy, loading music and using playback controls can take longer."),
@@ -71,7 +76,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         } else {
                             gettext(locale, "Remove from Your Library?")
                         },
-                        theme::bold(20.0),
+                        theme::font_bold(app.settings.font_dialogs, 20.0),
                         palette.text,
                     );
                     ui.add_space(8.0);
@@ -127,7 +132,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         } else {
                             gettext(locale, "Song already in this playlist")
                         },
-                        theme::bold(20.0),
+                        theme::font_bold(app.settings.font_dialogs, 20.0),
                         palette.text,
                     );
                     ui.add_space(8.0);
@@ -156,7 +161,12 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     });
                 }
                 Dialog::Shortcuts => {
-                    theme::text(ui, gettext(locale, "Keyboard shortcuts"), theme::bold(20.0), palette.text);
+                    theme::text(
+                        ui,
+                        gettext(locale, "Keyboard shortcuts"),
+                        theme::font_bold(app.settings.font_dialogs, 20.0),
+                        palette.text,
+                    );
                     ui.add_space(12.0);
                     // `theme::text` truncates, which in a grid makes each cell
                     // claim almost no width and turns "Ctrl+Shift+A" into
@@ -208,7 +218,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     theme::text(
                         ui,
                         gettext(locale, "This account cannot play music here"),
-                        theme::bold(20.0),
+                        theme::font_bold(app.settings.font_dialogs, 20.0),
                         palette.text,
                     );
                     ui.add_space(8.0);
@@ -363,7 +373,7 @@ fn create_playlist(app: &mut App, ui: &mut egui::Ui) {
     theme::text(
         ui,
         gettext(locale, "New playlist"),
-        theme::bold(20.0),
+        theme::font_bold(app.settings.font_dialogs, 20.0),
         palette.text,
     );
     ui.add_space(12.0);
@@ -462,7 +472,7 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
     theme::text(
         ui,
         gettext(locale, "Edit details"),
-        theme::bold(20.0),
+        theme::font_bold(app.settings.font_dialogs, 20.0),
         palette.text,
     );
     ui.add_space(12.0);

@@ -159,6 +159,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             );
         }
         let title_scale = app.settings.collection_title_scale.clamp(0.6, 1.5);
+        let use_header_hero = app.settings.font_collection_titles;
         ui.vertical(|ui| {
             let width = ui.available_width();
             ui.set_width(width);
@@ -167,7 +168,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             theme::text(
                 ui,
                 hero.kind.as_ref(),
-                theme::collection_medium(12.5),
+                theme::font_medium(use_header_hero, 12.5),
                 palette.text,
             );
             let mut size = (if cover_size > 200.0 { 56.0 } else { 40.0 }) * title_scale;
@@ -175,7 +176,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             loop {
                 let galley = ui.painter().layout_no_wrap(
                     hero.title.to_string(),
-                    theme::collection_bold(size),
+                    theme::font_bold(use_header_hero, size),
                     palette.text,
                 );
                 if galley.size().x <= width || size <= min_size {
@@ -183,14 +184,19 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                 }
                 size -= 6.0;
             }
-            theme::text(ui, hero.title, theme::collection_bold(size), palette.text);
+            theme::text(
+                ui,
+                hero.title,
+                theme::font_bold(use_header_hero, size),
+                palette.text,
+            );
             if let Some(description) = &hero.description
                 && !description.is_empty()
             {
                 theme::text(
                     ui,
                     description.as_str(),
-                    theme::collection_regular(13.5),
+                    theme::font_regular(use_header_hero, 13.5),
                     palette.secondary,
                 );
             }
@@ -215,12 +221,22 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                 }
                 for (index, (text, page)) in hero.byline.iter().enumerate() {
                     if index > 0 {
-                        theme::text(ui, "•", theme::collection_regular(13.5), palette.secondary);
+                        theme::text(
+                            ui,
+                            "•",
+                            theme::font_regular(use_header_hero, 13.5),
+                            palette.secondary,
+                        );
                     }
                     match page {
                         Some(page) => {
-                            if theme::link(ui, text, theme::collection_semibold(13.5), palette.text)
-                                .clicked()
+                            if theme::link(
+                                ui,
+                                text,
+                                theme::font_semibold(use_header_hero, 13.5),
+                                palette.text,
+                            )
+                            .clicked()
                             {
                                 app.actions.push(Action::Open(page.clone()));
                             }
@@ -229,7 +245,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                             theme::text(
                                 ui,
                                 text,
-                                theme::collection_regular(13.5),
+                                theme::font_regular(use_header_hero, 13.5),
                                 palette.secondary,
                             );
                         }
@@ -1603,7 +1619,7 @@ pub fn top_songs(app: &mut App, ui: &mut egui::Ui) {
     theme::text(
         ui,
         gettext(app.locale, "Your top songs"),
-        theme::bold(30.0),
+        theme::font_bold(app.settings.font_collection_titles, 30.0),
         palette.text,
     );
     ui.add_space(4.0);

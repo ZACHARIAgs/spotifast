@@ -109,7 +109,12 @@ fn recent(app: &mut App, ui: &mut egui::Ui) {
         );
         return;
     }
-    theme::section_title(ui, &palette, &gettext(app.locale, "Recent searches"));
+    theme::section_title_with_font(
+        ui,
+        &palette,
+        &gettext(app.locale, "Recent searches"),
+        app.settings.font_shelf_headers,
+    );
     ui.add_space(6.0);
     let history = app.settings.search_history.clone();
     ui.horizontal_wrapped(|ui| {
@@ -206,7 +211,12 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
         };
         ui.vertical(|ui| {
             ui.set_width(top_width);
-            theme::section_title(ui, &palette, &gettext(locale, "Top result"));
+            theme::section_title_with_font(
+                ui,
+                &palette,
+                &gettext(locale, "Top result"),
+                app.settings.font_shelf_headers,
+            );
             ui.add_space(4.0);
             if let Some(artist) = top_artist {
                 top_result(
@@ -341,7 +351,12 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
         .as_ref()
         .is_some_and(|page| !page.items.is_empty())
     {
-        theme::section_title(ui, &palette, &gettext(locale, "Episodes"));
+        theme::section_title_with_font(
+            ui,
+            &palette,
+            &gettext(locale, "Episodes"),
+            app.settings.font_shelf_headers,
+        );
         ui.add_space(4.0);
         episodes(app, ui, results, 4);
     }
@@ -403,7 +418,7 @@ fn top_result(
             text_clip.right(),
             text_clip.top() + 16.0,
             title,
-            theme::bold(26.0),
+            theme::font_bold(app.settings.font_shelf_headers, 26.0),
             palette.text,
         );
         match subtitle {
@@ -498,7 +513,12 @@ fn songs(app: &mut App, ui: &mut egui::Ui, results: &SearchResults, limit: usize
     if page.items.is_empty() {
         return;
     }
-    theme::section_title(ui, &palette, &gettext(app.locale, "Songs"));
+    theme::section_title_with_font(
+        ui,
+        &palette,
+        &gettext(app.locale, "Songs"),
+        app.settings.font_shelf_headers,
+    );
     ui.add_space(4.0);
     let items: Vec<PlayableItem> = page
         .items
@@ -583,6 +603,7 @@ fn shelf_artists(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
         &palette,
         "search-artists",
         &gettext(app.locale, "Artists"),
+        app.settings.font_shelf_headers,
         |ui| {
             for artist in &page.items {
                 artist_card(app, ui, artist);
@@ -651,6 +672,7 @@ fn shelf_albums(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
         &palette,
         "search-albums",
         &gettext(app.locale, "Albums"),
+        app.settings.font_shelf_headers,
         |ui| {
             for album in &page.items {
                 album_card(app, ui, album);
@@ -724,6 +746,7 @@ fn shelf_playlists(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
         &palette,
         "search-playlists",
         &gettext(app.locale, "Playlists"),
+        app.settings.font_shelf_headers,
         |ui| {
             for playlist in &page.items {
                 playlist_card(app, ui, playlist);
@@ -775,6 +798,7 @@ fn shelf_shows(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
         &palette,
         "search-shows",
         &gettext(app.locale, "Podcasts"),
+        app.settings.font_shelf_headers,
         |ui| {
             for show in &page.items {
                 show_card(app, ui, show);

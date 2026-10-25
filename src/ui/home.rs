@@ -41,7 +41,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     }
     ui.add_space(6.0);
     let greeting = crate::util::greeting(app.locale);
-    theme::text(ui, greeting.as_ref(), theme::bold(30.0), palette.text);
+    theme::text(
+        ui,
+        greeting.as_ref(),
+        theme::font_bold(app.settings.font_shelf_headers, 30.0),
+        palette.text,
+    );
     ui.add_space(12.0);
     quick_access(app, ui);
     ui.add_space(16.0);
@@ -340,6 +345,7 @@ fn made_for_you(app: &mut App, ui: &mut egui::Ui) {
         &palette,
         "made-for-you",
         &gettext(app.locale, "Made for you"),
+        app.settings.font_shelf_headers,
         |ui| {
             if playlists.is_empty() && loading {
                 widgets::skeleton_cards(ui, &palette, app.locale, 7, false);
@@ -369,6 +375,7 @@ fn top_mixes(app: &mut App, ui: &mut egui::Ui) {
         &palette,
         "top-mixes",
         &gettext(app.locale, "Your top mixes"),
+        app.settings.font_shelf_headers,
         |ui| playlist_cards(app, ui, "home-top_mixes-menu", &playlists),
     );
 }
@@ -390,6 +397,7 @@ fn new_releases(app: &mut App, ui: &mut egui::Ui) {
         &palette,
         "new-releases",
         &gettext(app.locale, "New releases"),
+        app.settings.font_shelf_headers,
         |ui| {
             if albums.is_empty() && loading {
                 widgets::loading_row(ui, &palette, app.locale);
@@ -515,6 +523,7 @@ fn recently_played(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 "recent",
                 &gettext(app.locale, "Recently played"),
+                app.settings.font_shelf_headers,
                 |ui| widgets::skeleton_cards(ui, &palette, app.locale, 7, false),
             );
             return;
@@ -525,6 +534,7 @@ fn recently_played(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 "recent",
                 &gettext(app.locale, "Recently played"),
+                app.settings.font_shelf_headers,
                 |ui| {
                     widgets::error_row(ui, app, &message, Some(Page::Home));
                 },
@@ -552,6 +562,7 @@ fn recently_played(app: &mut App, ui: &mut egui::Ui) {
         &palette,
         "recent",
         &gettext(app.locale, "Recently played"),
+        app.settings.font_shelf_headers,
         |ui| {
             for entry in &tracks {
                 let track = &entry.track;
@@ -689,6 +700,7 @@ fn podcasts(app: &mut App, ui: &mut egui::Ui) {
         &palette,
         "podcasts",
         &gettext(app.locale, "Your podcasts"),
+        app.settings.font_shelf_headers,
         |ui| {
             for (show, episode, reason) in &episodes {
                 let subtitle = match reason {
@@ -752,6 +764,7 @@ fn top_artists(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 "top-artists",
                 &gettext(app.locale, "Your top artists"),
+                app.settings.font_shelf_headers,
                 |ui| widgets::skeleton_cards(ui, &palette, app.locale, 7, true),
             );
             return;
@@ -762,6 +775,7 @@ fn top_artists(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 "top-artists",
                 &gettext(app.locale, "Your top artists"),
+                app.settings.font_shelf_headers,
                 |ui| {
                     widgets::error_row(ui, app, &message, Some(Page::Home));
                 },
@@ -777,6 +791,7 @@ fn top_artists(app: &mut App, ui: &mut egui::Ui) {
         &palette,
         "top-artists",
         &gettext(app.locale, "Your top artists"),
+        app.settings.font_shelf_headers,
         |ui| {
             for artist in &artists {
                 let context_here =
@@ -827,22 +842,25 @@ fn track_list(
     more_label: Option<&str>,
 ) {
     let palette = app.palette;
+    let shelf_font = app.settings.font_shelf_headers;
     let tracks = match tracks {
         Loadable::Loaded(tracks) => tracks,
         Loadable::Loading | Loadable::NotLoaded => {
             if let Some(page) = title_page {
-                if theme::link(ui, title, theme::bold(17.0), palette.text).clicked() {
+                if theme::link(ui, title, theme::font_bold(shelf_font, 17.0), palette.text)
+                    .clicked()
+                {
                     app.actions.push(Action::Open(page));
                 }
             } else {
-                theme::section_title(ui, &palette, title);
+                theme::section_title_with_font(ui, &palette, title, shelf_font);
             }
             widgets::skeleton_rows(ui, &palette, app.locale, 4);
             ui.add_space(12.0);
             return;
         }
         Loadable::Failed(message) => {
-            theme::section_title(ui, &palette, title);
+            theme::section_title_with_font(ui, &palette, title, shelf_font);
             widgets::error_row(ui, app, &message, Some(title_page.unwrap_or(Page::Home)));
             ui.add_space(12.0);
             return;
@@ -852,11 +870,11 @@ fn track_list(
         return;
     }
     if let Some(page) = title_page {
-        if theme::link(ui, title, theme::bold(17.0), palette.text).clicked() {
+        if theme::link(ui, title, theme::font_bold(shelf_font, 17.0), palette.text).clicked() {
             app.actions.push(Action::Open(page));
         }
     } else {
-        theme::section_title(ui, &palette, title);
+        theme::section_title_with_font(ui, &palette, title, shelf_font);
     }
     ui.add_space(4.0);
     let uris: Arc<[String]> = tracks

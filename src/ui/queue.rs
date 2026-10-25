@@ -21,7 +21,7 @@ pub fn page(app: &mut App, ui: &mut egui::Ui) {
         theme::text(
             ui,
             gettext(app.locale, "Queue"),
-            theme::bold(28.0),
+            theme::font_bold(app.settings.font_queue_headers, 28.0),
             palette.text,
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -418,7 +418,7 @@ fn contents_inner(app: &mut App, ui: &mut egui::Ui, compact: bool, show_current:
             theme::text(
                 ui,
                 gettext(app.locale, "Now playing"),
-                theme::semibold(14.0),
+                theme::font_semibold(app.settings.font_queue_headers, 14.0),
                 palette.text,
             );
             ui.add_space(4.0);
@@ -488,7 +488,7 @@ fn contents_inner(app: &mut App, ui: &mut egui::Ui, compact: bool, show_current:
                     // Translators: Songs added manually, before the current playlist or album continues.
                     "Playing next",
                 ),
-                theme::semibold(14.0),
+                theme::font_semibold(app.settings.font_queue_headers, 14.0),
                 palette.text,
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -595,7 +595,7 @@ fn contents_inner(app: &mut App, ui: &mut egui::Ui, compact: bool, show_current:
                 // Translators: Upcoming songs from the current playlist or album, after manually queued songs.
                 "Next up",
             ),
-            theme::semibold(14.0),
+            theme::font_semibold(app.settings.font_queue_headers, 14.0),
             palette.text,
         );
         ui.add_space(4.0);

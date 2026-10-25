@@ -932,6 +932,7 @@ fn nav_row(
     icon: Icon,
     label: &str,
     active: bool,
+    use_header: bool,
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
     if ui.is_rect_visible(rect) {
@@ -947,7 +948,7 @@ fn nav_row(
             pos2(rect.left() + 46.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             label,
-            theme::bold(15.0),
+            theme::font_bold(use_header, 15.0),
             color,
         );
     }
@@ -964,6 +965,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
     let palette = app.palette;
     let page = app.page().clone();
     let locale = app.locale;
+    let nav_font = app.settings.font_sidebar_nav;
     ui.add_space(4.0);
     if nav_row(
         ui,
@@ -971,6 +973,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
         Icon::House,
         &gettext(locale, "Home"),
         page == Page::Home,
+        nav_font,
     )
     .clicked()
     {
@@ -982,6 +985,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
         Icon::Search,
         &gettext(locale, "Search"),
         page == Page::Search,
+        nav_font,
     )
     .clicked()
     {
@@ -1080,13 +1084,22 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                 let room = ui.available_width() - 6.0;
                 let fits = [15.0, 14.0, 13.0].into_iter().find(|&size| {
                     ui.painter()
-                        .layout_no_wrap(heading.to_string(), theme::bold(size), palette.text)
+                        .layout_no_wrap(
+                            heading.to_string(),
+                            theme::font_bold(app.settings.font_sidebar_nav, size),
+                            palette.text,
+                        )
                         .size()
                         .x
                         <= room
                 });
                 if let Some(size) = fits {
-                    theme::text(ui, heading, theme::bold(size), palette.text);
+                    theme::text(
+                        ui,
+                        heading,
+                        theme::font_bold(app.settings.font_sidebar_nav, size),
+                        palette.text,
+                    );
                 }
             });
         });
@@ -1473,20 +1486,15 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     };
                     let sb_scale = app.settings.sidebar_font_scale.clamp(0.8, 1.35);
                     let active_collection = active || current;
+                    let use_header_row = app.settings.font_sidebar_rows;
                     let title_font = |size: f32| {
                         if active_collection {
-                            theme::collection_semibold(size * sb_scale)
+                            theme::font_semibold(use_header_row, size * sb_scale)
                         } else {
-                            theme::medium(size * sb_scale)
+                            theme::font_medium(use_header_row, size * sb_scale)
                         }
                     };
-                    let sub_font = |size: f32| {
-                        if active_collection {
-                            theme::collection_regular(size * sb_scale)
-                        } else {
-                            theme::regular(size * sb_scale)
-                        }
-                    };
+                    let sub_font = |size: f32| theme::font_regular(use_header_row, size * sb_scale);
                     let cover_rad = f32::from(app.settings.cover_radius).min(12.0);
                     let indent = f32::from(entry.depth) * 14.0;
                     if let Some((_, collapsed, _)) = &entry.folder {
@@ -1867,7 +1875,7 @@ fn library_grid(
                                 vec2(text_width, 18.0),
                             ),
                             &entry.name,
-                            theme::medium(13.5),
+                            theme::font_medium(app.settings.font_sidebar_rows, 13.5),
                             if playing {
                                 palette.accent
                             } else {
@@ -1881,7 +1889,7 @@ fn library_grid(
                                 vec2(text_width, 17.0),
                             ),
                             &entry.grid_subtitle,
-                            theme::regular(12.0),
+                            theme::font_regular(app.settings.font_sidebar_rows, 12.0),
                             palette.secondary,
                         );
 

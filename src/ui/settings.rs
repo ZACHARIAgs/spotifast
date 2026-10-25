@@ -2296,20 +2296,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let customization = gettext(locale, "Customization");
     let custom_rows = [
         RowText::new(
-            gettext(locale, "Playlist and album font"),
-            gettext(
-                locale,
-                "Font family for active playlists and albums: hero titles, track tables, and the active sidebar entry.",
-            ),
-        ),
-        RowText::new(
-            gettext(locale, "Interface font"),
-            gettext(
-                locale,
-                "Override the font family used across the entire application.",
-            ),
-        ),
-        RowText::new(
             gettext(locale, "Playlist and album title size"),
             gettext(
                 locale,
@@ -2383,85 +2369,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &customization,
                 &custom_rows[0],
                 |ui| {
-                    if font_picker(
-                        ui,
-                        locale,
-                        "customization_collection_font",
-                        &custom_rows[0].title,
-                        &mut app.settings.collection_font,
-                    ) {
-                        changed = true;
-                    }
-                },
-            );
-            if custom_rows[0].matches(&needle, &customization) {
-                let installed = crate::system_fonts::available_families();
-                let mut quick: Vec<(Option<&str>, &str)> = vec![(None, "Inter")];
-                for candidate in [
-                    "Segoe UI",
-                    "Georgia",
-                    "Consolas",
-                    "Arial",
-                    "Verdana",
-                    "Trebuchet MS",
-                    "Times New Roman",
-                    "Impact",
-                ] {
-                    if let Some(found) = installed
-                        .iter()
-                        .find(|fam| fam.eq_ignore_ascii_case(candidate))
-                    {
-                        quick.push((Some(found.as_str()), found.as_str()));
-                    }
-                }
-                let active_idx = quick
-                    .iter()
-                    .position(
-                        |(val, _)| match (val, app.settings.collection_font.as_deref()) {
-                            (None, None) => true,
-                            (Some(a), Some(b)) => a.eq_ignore_ascii_case(b),
-                            _ => false,
-                        },
-                    )
-                    .unwrap_or(usize::MAX);
-                let chip_options: Vec<(usize, &str)> = quick
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (_, label))| (i, *label))
-                    .collect();
-                if let Some(picked) = widgets::chips(ui, &palette, &chip_options, active_idx)
-                    && picked != active_idx
-                {
-                    app.settings.collection_font = quick[picked].0.map(str::to_owned);
-                    changed = true;
-                }
-                ui.add_space(6.0);
-            }
-            filtered_row(
-                ui,
-                &palette,
-                &needle,
-                &customization,
-                &custom_rows[1],
-                |ui| {
-                    if font_picker(
-                        ui,
-                        locale,
-                        "customization_ui_font",
-                        &custom_rows[1].title,
-                        &mut app.settings.ui_font,
-                    ) {
-                        changed = true;
-                    }
-                },
-            );
-            filtered_row(
-                ui,
-                &palette,
-                &needle,
-                &customization,
-                &custom_rows[2],
-                |ui| {
                     let mut pct = (app.settings.collection_title_scale * 100.0)
                         .round()
                         .clamp(60.0, 150.0) as u32;
@@ -2478,7 +2385,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[3],
+                &custom_rows[1],
                 |ui| {
                     let mut pct = (app.settings.tracklist_font_scale * 100.0)
                         .round()
@@ -2496,7 +2403,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[4],
+                &custom_rows[2],
                 |ui| {
                     let mut pct = (app.settings.tracklist_row_scale * 100.0)
                         .round()
@@ -2514,7 +2421,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[5],
+                &custom_rows[3],
                 |ui| {
                     let mut pct = (app.settings.sidebar_font_scale * 100.0)
                         .round()
@@ -2532,7 +2439,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[6],
+                &custom_rows[4],
                 |ui| {
                     let mut pct = (app.settings.lyrics_font_scale * 100.0)
                         .round()
@@ -2550,7 +2457,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[7],
+                &custom_rows[5],
                 |ui| {
                     let mut rad = app.settings.cover_radius.min(24);
                     if setting_slider(ui, &palette, &mut rad, 0..=24, |s| s, |v| v.suffix(" px"))
@@ -2566,7 +2473,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[8],
+                &custom_rows[6],
                 |ui| {
                     let mut pct = (app.settings.header_tint_strength * 100.0)
                         .round()
@@ -2584,12 +2491,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[9],
+                &custom_rows[7],
                 |ui| {
                     if widgets::switch(
                         ui,
                         &palette,
-                        &custom_rows[9].title,
+                        &custom_rows[7].title,
                         &mut app.settings.now_playing_show_lyrics,
                     )
                     .changed()
@@ -2603,12 +2510,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 &palette,
                 &needle,
                 &customization,
-                &custom_rows[10],
+                &custom_rows[8],
                 |ui| {
                     if widgets::switch(
                         ui,
                         &palette,
-                        &custom_rows[10].title,
+                        &custom_rows[8].title,
                         &mut app.settings.now_playing_show_queue,
                     )
                     .changed()
@@ -2630,6 +2537,226 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     .clicked()
                     {
                         app.settings.reset_customizations();
+                        changed = true;
+                    }
+                });
+            }
+        });
+    }
+
+    let fonts_heading = gettext(locale, "Fonts");
+    let font_section_rows = [
+        RowText::new(
+            gettext(locale, "Base UI font"),
+            gettext(
+                locale,
+                "Font family for track lists, queue, lyrics, dialogs, and general body text.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Header UI font"),
+            gettext(
+                locale,
+                "Font family for titles, section headers, and tabs. When set to Default, inherits Base UI font.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Sidebar navigation tabs"),
+            gettext(
+                locale,
+                "Use Header font for Home, Search, and Library tabs in the sidebar.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Collection hero titles"),
+            gettext(
+                locale,
+                "Use Header font for Album, Playlist, Artist, and Podcast show hero headings.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Home & Search shelf headers"),
+            gettext(
+                locale,
+                "Use Header font for greetings and category shelf titles (\"Top result\", \"Songs\", etc.).",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Artist & Show section headers"),
+            gettext(
+                locale,
+                "Use Header font for \"Popular\", \"Discography\", \"About\", and \"All episodes\" sections.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Now Playing top context"),
+            gettext(
+                locale,
+                "Use Header font for the context heading at the top of the Now Playing panel.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Now Playing card headers"),
+            gettext(
+                locale,
+                "Use Header font for the \"Lyrics\" and \"Queue\" expansion card header bars.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Queue section headers"),
+            gettext(
+                locale,
+                "Use Header font for \"Next up\" and \"Recently played\" headers in the queue.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Now Playing panel song title"),
+            gettext(
+                locale,
+                "Use Header font for the playing song title under the cover art in the Now Playing panel.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Bottom player bar song title"),
+            gettext(
+                locale,
+                "Use Header font for the playing song title in the bottom player bar.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Fullscreen view song title"),
+            gettext(
+                locale,
+                "Use Header font for the large song title in the fullscreen canvas.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Track list rows"),
+            gettext(
+                locale,
+                "Use Header font for song titles and metadata inside playlists, albums, and search tables.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Sidebar library rows"),
+            gettext(
+                locale,
+                "Use Header font for playlists and albums in the left sidebar.",
+            ),
+        ),
+        RowText::new(
+            gettext(locale, "Dialogs & topbar titles"),
+            gettext(
+                locale,
+                "Use Header font for popup dialog titles and the top navigation bar title.",
+            ),
+        ),
+    ];
+    if section_matches(&needle, &fonts_heading, &font_section_rows) {
+        any_visible = true;
+        section(ui, &palette, &fonts_heading, |ui| {
+            filtered_row(
+                ui,
+                &palette,
+                &needle,
+                &fonts_heading,
+                &font_section_rows[0],
+                |ui| {
+                    if font_picker(
+                        ui,
+                        "settings_base_ui_font",
+                        &font_section_rows[0].title,
+                        &gettext(locale, "Inter (Default)"),
+                        &mut app.settings.base_ui_font,
+                    ) {
+                        changed = true;
+                    }
+                },
+            );
+            filtered_row(
+                ui,
+                &palette,
+                &needle,
+                &fonts_heading,
+                &font_section_rows[1],
+                |ui| {
+                    if font_picker(
+                        ui,
+                        "settings_header_ui_font",
+                        &font_section_rows[1].title,
+                        &gettext(locale, "Inherit Base Font (Default)"),
+                        &mut app.settings.header_ui_font,
+                    ) {
+                        changed = true;
+                    }
+                },
+            );
+
+            ui.add_space(6.0);
+            ui.separator();
+            ui.add_space(6.0);
+
+            let toggles: [(&RowText, &mut bool); 13] = [
+                (&font_section_rows[2], &mut app.settings.font_sidebar_nav),
+                (
+                    &font_section_rows[3],
+                    &mut app.settings.font_collection_titles,
+                ),
+                (&font_section_rows[4], &mut app.settings.font_shelf_headers),
+                (
+                    &font_section_rows[5],
+                    &mut app.settings.font_section_headers,
+                ),
+                (
+                    &font_section_rows[6],
+                    &mut app.settings.font_now_playing_context,
+                ),
+                (
+                    &font_section_rows[7],
+                    &mut app.settings.font_now_playing_cards,
+                ),
+                (&font_section_rows[8], &mut app.settings.font_queue_headers),
+                (
+                    &font_section_rows[9],
+                    &mut app.settings.font_now_playing_track,
+                ),
+                (
+                    &font_section_rows[10],
+                    &mut app.settings.font_player_bar_track,
+                ),
+                (
+                    &font_section_rows[11],
+                    &mut app.settings.font_fullscreen_track,
+                ),
+                (
+                    &font_section_rows[12],
+                    &mut app.settings.font_tracklist_rows,
+                ),
+                (&font_section_rows[13], &mut app.settings.font_sidebar_rows),
+                (&font_section_rows[14], &mut app.settings.font_dialogs),
+            ];
+
+            for (row_text, setting) in toggles {
+                filtered_row(ui, &palette, &needle, &fonts_heading, row_text, |ui| {
+                    if widgets::switch(ui, &palette, &row_text.title, setting).changed() {
+                        changed = true;
+                    }
+                });
+            }
+
+            if app.settings.has_font_customizations() {
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if theme::soft_button(
+                        ui,
+                        &palette,
+                        Some(Icon::Refresh),
+                        &gettext(locale, "Reset fonts to defaults"),
+                        false,
+                    )
+                    .clicked()
+                    {
+                        app.settings.reset_font_customizations();
                         changed = true;
                     }
                 });
@@ -2838,45 +2965,79 @@ fn language_picker(app: &mut App, ui: &mut egui::Ui) {
 
 fn font_picker(
     ui: &mut egui::Ui,
-    locale: crate::i18n::Locale,
     id_salt: &str,
     name: &str,
+    default_label: &str,
     value: &mut Option<String>,
 ) -> bool {
-    let default_label = gettext(locale, "Inter (Default)");
     let selected = value.clone().unwrap_or_else(|| default_label.to_string());
     let mut changed = false;
-    let response = egui::ComboBox::from_id_salt(id_salt)
-        .selected_text(&selected)
-        .width(220.0_f32.min(ui.available_width()))
-        .height(340.0)
-        .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(value.is_none(), default_label.as_ref())
-                .clicked()
-                && value.is_some()
-            {
-                *value = None;
-                changed = true;
-            }
-            let families = crate::system_fonts::available_families();
-            if !families.is_empty() {
-                ui.separator();
-            }
-            for family in families {
-                let is_selected = value
-                    .as_deref()
-                    .is_some_and(|v| v.eq_ignore_ascii_case(family));
-                if ui.selectable_label(is_selected, family.as_str()).clicked() && !is_selected {
-                    *value = Some(family.clone());
+    ui.scope(|ui| {
+        let visuals = ui.visuals_mut();
+        visuals.widgets.inactive.weak_bg_fill = egui::Color32::from_rgb(14, 14, 14);
+        visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(14, 14, 14);
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(2.0, egui::Color32::from_gray(80));
+        visuals.widgets.hovered.weak_bg_fill = egui::Color32::BLACK;
+        visuals.widgets.hovered.bg_fill = egui::Color32::BLACK;
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
+        visuals.widgets.active.weak_bg_fill = egui::Color32::BLACK;
+        visuals.widgets.active.bg_fill = egui::Color32::BLACK;
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(2.5, egui::Color32::WHITE);
+        visuals.widgets.open.weak_bg_fill = egui::Color32::BLACK;
+        visuals.widgets.open.bg_fill = egui::Color32::BLACK;
+        visuals.widgets.open.bg_stroke = egui::Stroke::new(2.5, egui::Color32::WHITE);
+        visuals.menu_corner_radius = egui::CornerRadius::same(6);
+        ui.spacing_mut().button_padding = egui::vec2(12.0, 8.0);
+
+        let response = egui::ComboBox::from_id_salt(id_salt)
+            .selected_text(
+                egui::RichText::new(&selected)
+                    .font(theme::bold(14.0))
+                    .color(egui::Color32::WHITE),
+            )
+            .width(260.0_f32.min(ui.available_width()))
+            .height(360.0)
+            .show_ui(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                let is_default_selected = value.is_none();
+                if ui
+                    .selectable_label(
+                        is_default_selected,
+                        egui::RichText::new(default_label).font(theme::bold(13.5)),
+                    )
+                    .clicked()
+                    && value.is_some()
+                {
+                    *value = None;
                     changed = true;
                 }
-            }
+                let families = crate::system_fonts::available_families();
+                if !families.is_empty() {
+                    ui.separator();
+                }
+                for family in families {
+                    let is_selected = value
+                        .as_deref()
+                        .is_some_and(|v| v.eq_ignore_ascii_case(family));
+                    if ui
+                        .selectable_label(
+                            is_selected,
+                            egui::RichText::new(family.as_str()).font(theme::bold(13.5)),
+                        )
+                        .clicked()
+                        && !is_selected
+                    {
+                        *value = Some(family.clone());
+                        changed = true;
+                    }
+                }
+            });
+        response.response.widget_info(|| {
+            let mut info =
+                egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, ui.is_enabled(), name);
+            info.current_text_value = Some(selected.clone());
+            info
         });
-    response.response.widget_info(|| {
-        let mut info = egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, ui.is_enabled(), name);
-        info.current_text_value = Some(selected.clone());
-        info
     });
     changed
 }

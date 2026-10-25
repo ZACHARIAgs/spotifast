@@ -39,7 +39,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 page.episodes.loading,
             );
             if !show.description.is_empty() {
-                theme::section_title(ui, &palette, &gettext(locale, "About"));
+                theme::section_title_with_font(
+                    ui,
+                    &palette,
+                    &gettext(locale, "About"),
+                    app.settings.font_section_headers,
+                );
                 ui.add_space(4.0);
                 let description = util::strip_html(&show.description);
                 let galley = crate::bidi::layout(
@@ -54,7 +59,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 ui.add(egui::Label::new(galley));
                 ui.add_space(16.0);
             }
-            theme::section_title(ui, &palette, &gettext(locale, "All episodes"));
+            theme::section_title_with_font(
+                ui,
+                &palette,
+                &gettext(locale, "All episodes"),
+                app.settings.font_section_headers,
+            );
             ui.add_space(6.0);
             let episodes = page.episodes.items.clone();
             let show_image = pick_image(&show.images, app.art_px(EPISODE_ART)).map(str::to_string);

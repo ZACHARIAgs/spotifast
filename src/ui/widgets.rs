@@ -1488,6 +1488,7 @@ fn track_row_contents(
     } else {
         app.settings.tracklist_font_scale.clamp(0.75, 1.4)
     };
+    let use_header_row = app.settings.font_tracklist_rows;
     let row_height = ((if row.thin {
         theme::THIN_ROW_HEIGHT
     } else if row.compact {
@@ -1630,7 +1631,7 @@ fn track_row_contents(
                 cell.center(),
                 egui::Align2::CENTER_CENTER,
                 label,
-                theme::collection_regular(14.0 * font_scale),
+                theme::font_regular(use_header_row, 14.0 * font_scale),
                 color,
             );
         }
@@ -1721,7 +1722,7 @@ fn track_row_contents(
         theme::text(
             &mut child,
             row.item.name(),
-            theme::collection_medium(14.0 * font_scale),
+            theme::font_medium(use_header_row, 14.0 * font_scale),
             title_color,
         );
         match row.item {
@@ -1732,14 +1733,14 @@ fn track_row_contents(
                 theme::text(
                     &mut child,
                     "•",
-                    theme::collection_regular(12.0 * font_scale),
+                    theme::font_regular(use_header_row, 12.0 * font_scale),
                     palette.secondary.gamma_multiply(0.6),
                 );
                 artist_links(
                     &mut child,
                     app,
                     &track.artists,
-                    theme::collection_regular(13.0 * font_scale),
+                    theme::font_regular(use_header_row, 13.0 * font_scale),
                     subtitle_color,
                 );
                 if let Some(added) = row.added_at.filter(|a| !a.starts_with("1970-01-01"))
@@ -1750,13 +1751,13 @@ fn track_row_contents(
                     theme::text(
                         &mut child,
                         "•",
-                        theme::collection_regular(12.0 * font_scale),
+                        theme::font_regular(use_header_row, 12.0 * font_scale),
                         palette.secondary.gamma_multiply(0.6),
                     );
                     theme::text(
                         &mut child,
                         &label,
-                        theme::collection_regular(12.0 * font_scale),
+                        theme::font_regular(use_header_row, 12.0 * font_scale),
                         palette.secondary,
                     );
                     if label.ends_with(" ago") {
@@ -1775,14 +1776,14 @@ fn track_row_contents(
                     theme::text(
                         &mut child,
                         "•",
-                        theme::collection_regular(12.0 * font_scale),
+                        theme::font_regular(use_header_row, 12.0 * font_scale),
                         palette.secondary.gamma_multiply(0.6),
                     );
                     let show_id = episode.show.as_ref().map(|show| show.id.clone());
                     let response = theme::link(
                         &mut child,
                         subtitle,
-                        theme::collection_regular(13.0 * font_scale),
+                        theme::font_regular(use_header_row, 13.0 * font_scale),
                         subtitle_color,
                     );
                     if response.clicked()
@@ -1797,7 +1798,7 @@ fn track_row_contents(
                     theme::text(
                         &mut child,
                         "•",
-                        theme::collection_regular(12.0 * font_scale),
+                        theme::font_regular(use_header_row, 12.0 * font_scale),
                         palette.secondary.gamma_multiply(0.6),
                     );
                     let label =
@@ -1805,7 +1806,7 @@ fn track_row_contents(
                     theme::text(
                         &mut child,
                         &label,
-                        theme::collection_regular(12.0 * font_scale),
+                        theme::font_regular(use_header_row, 12.0 * font_scale),
                         palette.secondary,
                     );
                     if label.ends_with(" ago") {
@@ -1831,7 +1832,7 @@ fn track_row_contents(
             theme::text(
                 ui,
                 row.item.name(),
-                theme::collection_medium(14.5 * font_scale),
+                theme::font_medium(use_header_row, 14.5 * font_scale),
                 title_color,
             );
         });
@@ -1846,7 +1847,7 @@ fn track_row_contents(
                         ui,
                         app,
                         &track.artists,
-                        theme::collection_regular(12.5 * font_scale),
+                        theme::font_regular(use_header_row, 12.5 * font_scale),
                         subtitle_color,
                     );
                     if let Some(added) = row.added_at.filter(|a| !a.starts_with("1970-01-01"))
@@ -1855,7 +1856,7 @@ fn track_row_contents(
                         theme::text(
                             ui,
                             "•",
-                            theme::collection_regular(12.0 * font_scale),
+                            theme::font_regular(use_header_row, 12.0 * font_scale),
                             palette.secondary.gamma_multiply(0.6),
                         );
                         let label =
@@ -1863,7 +1864,7 @@ fn track_row_contents(
                         theme::text(
                             ui,
                             &label,
-                            theme::collection_regular(12.0 * font_scale),
+                            theme::font_regular(use_header_row, 12.0 * font_scale),
                             palette.secondary,
                         );
                         if label.ends_with(" ago") {
@@ -1882,7 +1883,7 @@ fn track_row_contents(
                     let response = theme::link(
                         ui,
                         subtitle,
-                        theme::collection_regular(12.5 * font_scale),
+                        theme::font_regular(use_header_row, 12.5 * font_scale),
                         subtitle_color,
                     );
                     if response.clicked()
@@ -1896,7 +1897,7 @@ fn track_row_contents(
                         theme::text(
                             ui,
                             "•",
-                            theme::collection_regular(12.0 * font_scale),
+                            theme::font_regular(use_header_row, 12.0 * font_scale),
                             palette.secondary.gamma_multiply(0.6),
                         );
                         let label =
@@ -1904,7 +1905,7 @@ fn track_row_contents(
                         theme::text(
                             ui,
                             &label,
-                            theme::collection_regular(12.0 * font_scale),
+                            theme::font_regular(use_header_row, 12.0 * font_scale),
                             palette.secondary,
                         );
                         if label.ends_with(" ago") {
@@ -1936,7 +1937,7 @@ fn track_row_contents(
             let response = theme::link(
                 &mut child,
                 album.name.clone(),
-                theme::collection_regular(13.0 * font_scale),
+                theme::font_regular(use_header_row, 13.0 * font_scale),
                 subtitle_color,
             );
             if response.clicked() && !album.id.is_empty() {
@@ -1960,7 +1961,7 @@ fn track_row_contents(
                 cell.right(),
                 cell.center().y,
                 adder,
-                theme::collection_regular(13.0 * font_scale),
+                theme::font_regular(use_header_row, 13.0 * font_scale),
                 palette.secondary,
             );
         }
@@ -1980,7 +1981,7 @@ fn track_row_contents(
                 pos2(cell.left(), cell.center().y),
                 egui::Align2::LEFT_CENTER,
                 &label,
-                theme::collection_regular(13.0 * font_scale),
+                theme::font_regular(use_header_row, 13.0 * font_scale),
                 palette.secondary,
             );
             // Relative labels cross a boundary while the table is idle, so
@@ -2000,7 +2001,7 @@ fn track_row_contents(
                 pos2(cell.left(), cell.center().y),
                 egui::Align2::LEFT_CENTER,
                 util::format_count(*plays),
-                theme::collection_regular(13.0 * font_scale),
+                theme::font_regular(use_header_row, 13.0 * font_scale),
                 palette.secondary,
             );
         }
@@ -2048,7 +2049,7 @@ fn track_row_contents(
         pos2(duration_rect.right() - 6.0, duration_rect.center().y),
         egui::Align2::RIGHT_CENTER,
         util::format_duration_ms(row.item.duration_ms()),
-        theme::collection_regular(13.0 * font_scale),
+        theme::font_regular(use_header_row, 13.0 * font_scale),
         palette.secondary,
     );
     x += cols.duration;
@@ -2787,10 +2788,11 @@ pub fn shelf(
     palette: &Palette,
     id: &str,
     title: &str,
+    use_header: bool,
     add_contents: impl FnOnce(&mut Ui),
 ) {
     ui.add_space(8.0);
-    theme::section_title(ui, palette, title);
+    theme::section_title_with_font(ui, palette, title, use_header);
     shelf_cards(ui, id, add_contents);
 }
 
@@ -2801,10 +2803,12 @@ pub fn linked_shelf(
     palette: &Palette,
     id: &str,
     title: &str,
+    use_header: bool,
     add_contents: impl FnOnce(&mut Ui),
 ) -> bool {
     ui.add_space(8.0);
-    let clicked = theme::link(ui, title, theme::bold(17.0), palette.text).clicked();
+    let clicked =
+        theme::link(ui, title, theme::font_bold(use_header, 17.0), palette.text).clicked();
     shelf_cards(ui, id, add_contents);
     clicked
 }

@@ -541,7 +541,10 @@ fn big_cover(app: &App, ui: &mut egui::Ui, column: Rect, align: Align) {
     text.add(
         egui::Label::new(
             egui::RichText::new(&now.title)
-                .font(theme::semibold(22.0))
+                .font(theme::font_semibold(
+                    app.settings.font_fullscreen_track,
+                    22.0,
+                ))
                 .color(Color32::WHITE),
         )
         .truncate(),
@@ -676,7 +679,10 @@ fn track_heading(app: &App, ui: &mut egui::Ui) {
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(&now.title)
-                            .font(theme::semibold(22.0))
+                            .font(theme::font_semibold(
+                                app.settings.font_fullscreen_track,
+                                22.0,
+                            ))
                             .color(Color32::WHITE),
                     )
                     .truncate(),

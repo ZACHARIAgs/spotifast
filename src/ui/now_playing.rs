@@ -108,22 +108,35 @@ fn header(app: &mut App, ui: &mut egui::Ui) {
         ui,
         |ui| {
             ui.add_space(2.0);
+            let ctx_font = app.settings.font_now_playing_context;
             match from {
                 Some(from) => match from.page {
                     Some(page) => {
-                        if theme::link(ui, from.name, theme::bold(15.0), palette.text).clicked() {
+                        if theme::link(
+                            ui,
+                            from.name,
+                            theme::font_bold(ctx_font, 15.0),
+                            palette.text,
+                        )
+                        .clicked()
+                        {
                             open_page = Some(page);
                         }
                     }
                     None => {
-                        theme::text(ui, from.name, theme::bold(15.0), palette.text);
+                        theme::text(
+                            ui,
+                            from.name,
+                            theme::font_bold(ctx_font, 15.0),
+                            palette.text,
+                        );
                     }
                 },
                 None => {
                     theme::text(
                         ui,
                         gettext(app.locale, "Now playing"),
-                        theme::bold(15.0),
+                        theme::font_bold(ctx_font, 15.0),
                         palette.text,
                     );
                 }
@@ -247,7 +260,7 @@ fn cover_and_meta(app: &mut App, ui: &mut egui::Ui, width: f32, now: Option<&Now
         theme::text(
             ui,
             gettext(app.locale, "Nothing playing"),
-            theme::bold(18.0),
+            theme::font_bold(app.settings.font_now_playing_track, 18.0),
             palette.text,
         );
         ui.add_space(2.0);
@@ -314,7 +327,12 @@ fn cover_and_meta(app: &mut App, ui: &mut egui::Ui, width: f32, now: Option<&Now
             |ui| {
                 ui.set_max_width(text_width);
                 ui.spacing_mut().item_spacing.y = 3.0;
-                let title_res = theme::link(ui, &now.title, theme::bold(18.0), palette.text);
+                let title_res = theme::link(
+                    ui,
+                    &now.title,
+                    theme::font_bold(app.settings.font_now_playing_track, 18.0),
+                    palette.text,
+                );
                 if title_res.clicked() {
                     if let Some(id) = &now.album_id {
                         app.actions.push(Action::Open(Page::Album(id.clone())));
@@ -456,6 +474,7 @@ fn lyrics_card(app: &mut App, ui: &mut egui::Ui, width: f32, height: f32) {
     card_ui.set_clip_rect(inner_rect.intersect(ui.clip_rect()));
 
     let locale = app.locale;
+    let cards_font = app.settings.font_now_playing_cards;
     let mut toggle_left = false;
     let mut toggle_right = false;
     let mut expand_fullscreen = false;
@@ -469,7 +488,7 @@ fn lyrics_card(app: &mut App, ui: &mut egui::Ui, width: f32, height: f32) {
             let label = theme::link(
                 ui,
                 gettext(locale, "Lyrics"),
-                theme::bold(15.0),
+                theme::font_bold(cards_font, 15.0),
                 palette.text,
             );
             if label.clicked() {
@@ -592,6 +611,7 @@ fn queue_card(app: &mut App, ui: &mut egui::Ui, width: f32, height: f32) {
 
     let locale = app.locale;
     let offer_save = !app.queue_playlist_uris().is_empty();
+    let cards_font = app.settings.font_now_playing_cards;
     let mut toggle_left = false;
     let mut toggle_right = false;
     let mut save = false;
@@ -603,7 +623,7 @@ fn queue_card(app: &mut App, ui: &mut egui::Ui, width: f32, height: f32) {
             let label = theme::link(
                 ui,
                 gettext(locale, "Queue"),
-                theme::bold(15.0),
+                theme::font_bold(cards_font, 15.0),
                 palette.text,
             );
             if label.clicked() {
