@@ -163,13 +163,25 @@ fn body(app: &mut App, ui: &mut egui::Ui, viewport_height: f32) {
     let show_lyrics = app.settings.now_playing_show_lyrics;
     let show_queue = app.settings.now_playing_show_queue;
 
+    let is_instrumental = match &app.lyrics {
+        Loadable::Loaded(Some(lyrics)) => lyrics.instrumental || lyrics.lines.is_empty(),
+        Loadable::Loaded(None) => true,
+        _ => false,
+    };
+    let current_uri = now.as_ref().map(|n| n.uri.as_str());
+    let is_peek = is_instrumental
+        && current_uri.is_some()
+        && app.now_playing_lyrics_instrumental_peek.as_deref() == current_uri;
+
+    let user_wants_expanded = app.settings.now_playing_lyrics_expanded;
+    let lyrics_should_expand = user_wants_expanded && (!is_instrumental || is_peek);
+
     match (show_lyrics, show_queue) {
         (true, true) => {
             let both_fit = remaining >= MIN_LYRICS_HEIGHT + MIN_QUEUE_HEIGHT + CARD_GAP;
-            if app.now_playing_lyrics_auto != Some(both_fit) {
-                app.now_playing_lyrics_auto = Some(both_fit);
-                app.now_playing_lyrics_collapsed = !both_fit;
-            }
+            app.now_playing_lyrics_auto = Some(both_fit);
+            app.now_playing_lyrics_collapsed = !lyrics_should_expand || !both_fit;
+
             let (lyrics_height, queue_height) = section_heights(
                 remaining,
                 !app.now_playing_lyrics_collapsed,
@@ -180,6 +192,7 @@ fn body(app: &mut App, ui: &mut egui::Ui, viewport_height: f32) {
             queue_card(app, ui, width, queue_height);
         }
         (true, false) => {
+            app.now_playing_lyrics_collapsed = !lyrics_should_expand;
             let height = if app.now_playing_lyrics_collapsed {
                 COLLAPSED_HEIGHT
             } else {
@@ -503,7 +516,29 @@ fn lyrics_card(app: &mut App, ui: &mut egui::Ui, width: f32, height: f32) {
     );
 
     if (header_response.clicked() || toggle_left || toggle_right) && !expand_fullscreen && !follow {
-        app.now_playing_lyrics_collapsed = !app.now_playing_lyrics_collapsed;
+        let is_instrumental = match &app.lyrics {
+            Loadable::Loaded(Some(lyrics)) => lyrics.instrumental || lyrics.lines.is_empty(),
+            Loadable::Loaded(None) => true,
+            _ => false,
+        };
+        let current_uri = app.now_playing().map(|n| n.uri.clone());
+        if is_instrumental && app.settings.now_playing_lyrics_expanded {
+            let is_peeking = current_uri.is_some()
+                && app.now_playing_lyrics_instrumental_peek.as_ref() == current_uri.as_ref();
+            if is_peeking {
+                app.now_playing_lyrics_instrumental_peek = None;
+            } else {
+                app.now_playing_lyrics_instrumental_peek = current_uri;
+            }
+        } else {
+            app.settings.now_playing_lyrics_expanded = !app.settings.now_playing_lyrics_expanded;
+            app.actions.push(Action::SettingsChanged);
+            if app.settings.now_playing_lyrics_expanded && is_instrumental {
+                app.now_playing_lyrics_instrumental_peek = current_uri;
+            } else {
+                app.now_playing_lyrics_instrumental_peek = None;
+            }
+        }
     }
     if expand_fullscreen {
         app.actions.push(Action::SetLyricsFullscreen(true));
@@ -656,5 +691,71 @@ mod tests {
         let (lyrics_collapsed, queue_min) = section_heights(120.0, false, true);
         assert_eq!(lyrics_collapsed, COLLAPSED_HEIGHT);
         assert_eq!(queue_min, MIN_QUEUE_HEIGHT);
+    }
+
+    #[test]
+    fn instrumental_tracks_collapse_lyrics_unless_peeking_or_globally_collapsed() {
+        let has_lyrics = Loadable::Loaded(Some(crate::lyrics::Lyrics {
+            lines: vec![crate::lyrics::Line {
+                at_ms: Some(1000),
+                text: "Hello".into(),
+            }],
+            instrumental: false,
+            synced: true,
+        }));
+        let instrumental = Loadable::Loaded(Some(crate::lyrics::Lyrics {
+            lines: vec![],
+            instrumental: true,
+            synced: true,
+        }));
+        let no_lyrics: Loadable<Option<crate::lyrics::Lyrics>> = Loadable::Loaded(None);
+
+        let check_should_expand = |expanded_setting: bool,
+                                   lyrics: &Loadable<Option<crate::lyrics::Lyrics>>,
+                                   current_uri: Option<&str>,
+                                   peek_uri: Option<&str>|
+         -> bool {
+            let is_instrumental = match lyrics {
+                Loadable::Loaded(Some(l)) => l.instrumental || l.lines.is_empty(),
+                Loadable::Loaded(None) => true,
+                _ => false,
+            };
+            let is_peek = is_instrumental && current_uri.is_some() && peek_uri == current_uri;
+
+            expanded_setting && (!is_instrumental || is_peek)
+        };
+
+        // Normal song with lyrics -> expands
+        assert!(check_should_expand(true, &has_lyrics, Some("track1"), None));
+        // Instrumental song -> auto-collapses
+        assert!(!check_should_expand(
+            true,
+            &instrumental,
+            Some("track2"),
+            None
+        ));
+        // No lyrics track -> auto-collapses
+        assert!(!check_should_expand(true, &no_lyrics, Some("track2"), None));
+        // Instrumental song with peek on track2 -> expands!
+        assert!(check_should_expand(
+            true,
+            &instrumental,
+            Some("track2"),
+            Some("track2")
+        ));
+        // Next instrumental song track3 -> peek doesn't match track3, so auto-collapses!
+        assert!(!check_should_expand(
+            true,
+            &instrumental,
+            Some("track3"),
+            Some("track2")
+        ));
+        // If user globally collapses lyrics -> stays collapsed even for songs with lyrics
+        assert!(!check_should_expand(
+            false,
+            &has_lyrics,
+            Some("track1"),
+            None
+        ));
     }
 }

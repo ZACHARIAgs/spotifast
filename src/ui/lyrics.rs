@@ -334,7 +334,9 @@ pub fn fullscreen(app: &mut App, ui: &mut egui::Ui) {
             content.add_space(20.0);
             track_heading(app, &mut content);
             content.add_space(16.0);
-            fullscreen_contents(app, &mut content);
+            if !app.lyrics_fullscreen_hidden {
+                fullscreen_contents(app, &mut content);
+            }
         });
 }
 
@@ -362,7 +364,8 @@ fn with_cover(app: &mut App, ui: &mut egui::Ui, rect: Rect, top: f32) {
     // The cover moves aside only for words to read. While they load it
     // stays in the middle, so a song that turns out to have none never
     // moves at all.
-    let words = matches!(&app.lyrics, Loadable::Loaded(Some(lyrics)) if !lyrics.instrumental);
+    let words = !app.lyrics_fullscreen_hidden
+        && matches!(&app.lyrics, Loadable::Loaded(Some(lyrics)) if !lyrics.instrumental);
     // The queue docks right while its flag is on, in both arrangements.
     // Without it the room below is untouched, preserving the stock layout.
     let gap = 64.0;
@@ -439,61 +442,65 @@ fn with_cover(app: &mut App, ui: &mut egui::Ui, rect: Rect, top: f32) {
             .clamp(min_side, 560.0);
         let column = Rect::from_center_size(span.center(), vec2(side, side + 90.0));
         big_cover(app, ui, column, Align::Center);
-        // Why there are no words, quietly, under the song, or that they
-        // are still being fetched.
-        let (heading, detail) = match &app.lyrics {
-            Loadable::Loaded(Some(_)) => (
-                gettext(app.locale, "Instrumental"),
-                gettext(app.locale, "No timed lyrics for this track."),
-            ),
-            Loadable::Loaded(None) => (
-                gettext(app.locale, "No lyrics"),
-                gettext(app.locale, "No lyrics found for this track."),
-            ),
-            Loadable::Failed(error) => (
-                gettext(
-                    app.locale,
-                    // Translators: Keep {error} unchanged. It is the original failure detail.
-                    "Couldn't fetch the lyrics: {error}",
-                )
-                .replace("{error}", error)
-                .into(),
-                Default::default(),
-            ),
-            Loadable::NotLoaded | Loadable::Loading => {
-                (gettext(app.locale, "Loading…"), Default::default())
-            }
-        };
-        let heading = ui.painter().text(
-            pos2(column.center().x, column.bottom() + 8.0),
-            egui::Align2::CENTER_TOP,
-            heading,
-            theme::semibold(13.0),
-            Color32::from_gray(200),
-        );
-        if matches!(app.lyrics, Loadable::Failed(_)) {
-            let retry = Rect::from_center_size(
-                pos2(column.center().x, heading.bottom() + 24.0),
-                vec2(column.width(), 32.0),
+        if !app.lyrics_fullscreen_hidden {
+            // Why there are no words, quietly, under the song, or that they
+            // are still being fetched.
+            let (heading, detail) = match &app.lyrics {
+                Loadable::Loaded(Some(_)) => (
+                    gettext(app.locale, "Instrumental"),
+                    gettext(app.locale, "No timed lyrics for this track."),
+                ),
+                Loadable::Loaded(None) => (
+                    gettext(app.locale, "No lyrics"),
+                    gettext(app.locale, "No lyrics found for this track."),
+                ),
+                Loadable::Failed(error) => (
+                    gettext(
+                        app.locale,
+                        // Translators: Keep {error} unchanged. It is the original failure detail.
+                        "Couldn't fetch the lyrics: {error}",
+                    )
+                    .replace("{error}", error)
+                    .into(),
+                    Default::default(),
+                ),
+                Loadable::NotLoaded | Loadable::Loading => {
+                    (gettext(app.locale, "Loading…"), Default::default())
+                }
+            };
+            let heading = ui.painter().text(
+                pos2(column.center().x, column.bottom() + 8.0),
+                egui::Align2::CENTER_TOP,
+                heading,
+                theme::semibold(13.0),
+                Color32::from_gray(200),
             );
-            let mut retry_ui = ui.new_child(
-                UiBuilder::new()
-                    .max_rect(retry)
-                    .layout(Layout::top_down(Align::Center)),
-            );
-            let label = gettext(app.locale, "Try again");
-            if theme::pill_button(&mut retry_ui, &theme::Palette::dark(), &label, false).clicked() {
-                app.actions.push(Action::RetryLyrics);
+            if matches!(app.lyrics, Loadable::Failed(_)) {
+                let retry = Rect::from_center_size(
+                    pos2(column.center().x, heading.bottom() + 24.0),
+                    vec2(column.width(), 32.0),
+                );
+                let mut retry_ui = ui.new_child(
+                    UiBuilder::new()
+                        .max_rect(retry)
+                        .layout(Layout::top_down(Align::Center)),
+                );
+                let label = gettext(app.locale, "Try again");
+                if theme::pill_button(&mut retry_ui, &theme::Palette::dark(), &label, false)
+                    .clicked()
+                {
+                    app.actions.push(Action::RetryLyrics);
+                }
+                return;
             }
-            return;
+            ui.painter().text(
+                pos2(column.center().x, heading.bottom() + 4.0),
+                egui::Align2::CENTER_TOP,
+                detail,
+                theme::regular(13.0),
+                Color32::from_gray(170),
+            );
         }
-        ui.painter().text(
-            pos2(column.center().x, heading.bottom() + 4.0),
-            egui::Align2::CENTER_TOP,
-            detail,
-            theme::regular(13.0),
-            Color32::from_gray(170),
-        );
     }
 }
 
@@ -616,9 +623,27 @@ fn fullscreen_header(app: &mut App, ui: &mut egui::Ui) {
             {
                 app.actions.push(Action::SetLyricsFullscreen(false));
             }
+            let (hide_icon, hide_tooltip) = if app.lyrics_fullscreen_hidden {
+                (Icon::Eye, gettext(app.locale, "Show lyrics"))
+            } else {
+                (Icon::EyeOff, gettext(app.locale, "Hide lyrics"))
+            };
+            if theme::icon_button(
+                ui,
+                hide_icon,
+                18.0,
+                palette.text,
+                palette.text,
+                &hide_tooltip,
+            )
+            .clicked()
+            {
+                app.lyrics_fullscreen_hidden = !app.lyrics_fullscreen_hidden;
+            }
             let loaded = matches!(&app.lyrics, Loadable::Loaded(Some(_)));
             if loaded
                 && !app.lyrics_following
+                && !app.lyrics_fullscreen_hidden
                 && theme::pill_button(
                     ui,
                     &palette,

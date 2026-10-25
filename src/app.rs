@@ -560,6 +560,9 @@ pub struct App {
     pub now_playing_lyrics_collapsed: bool,
     pub now_playing_queue_collapsed: bool,
     pub now_playing_lyrics_auto: Option<bool>,
+    /// Track URI where the user explicitly clicked the collapsed card of an
+    /// instrumental track to view the instrumental message.
+    pub now_playing_lyrics_instrumental_peek: Option<String>,
     pub show_queue_panel: bool,
     pub show_lyrics_panel: bool,
     /// Friend activity takes the right panel's place, so at most one of the
@@ -574,6 +577,8 @@ pub struct App {
     friends_generation: u64,
     pub lyrics_fullscreen: Option<bool>,
     pub lyrics_fullscreen_seen: bool,
+    /// Whether lyrics and instrumental warnings are hidden in fullscreen view.
+    pub lyrics_fullscreen_hidden: bool,
     lyrics_fullscreen_restoring: Option<bool>,
     lyrics_restore_maximized: bool,
     pub lyrics_backdrop: crate::images::LyricsBackdrop,
@@ -1174,6 +1179,7 @@ impl App {
             now_playing_lyrics_collapsed: false,
             now_playing_queue_collapsed: false,
             now_playing_lyrics_auto: None,
+            now_playing_lyrics_instrumental_peek: None,
             show_queue_panel: session.queue_open.unwrap_or(false)
                 && !session.now_playing_open.unwrap_or(false),
             show_lyrics_panel: false,
@@ -1184,6 +1190,7 @@ impl App {
             friends_generation: 0,
             lyrics_fullscreen: None,
             lyrics_fullscreen_seen: false,
+            lyrics_fullscreen_hidden: false,
             lyrics_fullscreen_restoring: None,
             lyrics_restore_maximized: false,
             lyrics_backdrop: Default::default(),
@@ -10438,6 +10445,7 @@ impl App {
     }
 
     fn leave_lyrics_fullscreen(&mut self, ctx: &egui::Context) {
+        self.lyrics_fullscreen_hidden = false;
         if let Some(was_fullscreen) = self.lyrics_fullscreen.take() {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(was_fullscreen));
             if self.lyrics_restore_maximized {
@@ -22899,6 +22907,16 @@ mod tests {
                 .commands
                 .contains(&egui::ViewportCommand::Fullscreen(false))
         );
+    }
+
+    #[test]
+    fn leaving_fullscreen_resets_lyrics_hidden_state() {
+        let mut app = headless_app();
+        let ctx = egui::Context::default();
+        app.apply(Action::SetLyricsFullscreen(true), &ctx);
+        app.lyrics_fullscreen_hidden = true;
+        app.apply(Action::SetLyricsFullscreen(false), &ctx);
+        assert!(!app.lyrics_fullscreen_hidden);
     }
 
     fn headless_app() -> App {

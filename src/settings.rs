@@ -469,6 +469,9 @@ pub struct Settings {
     pub now_playing_show_lyrics: bool,
     /// Show the Queue card in the Now Playing side panel.
     pub now_playing_show_queue: bool,
+    /// Whether the user has chosen to expand the Lyrics card in the Now Playing panel.
+    #[serde(default = "default_true")]
+    pub now_playing_lyrics_expanded: bool,
 }
 
 impl std::fmt::Debug for Settings {
@@ -585,8 +588,13 @@ impl Default for Settings {
             header_tint_strength: 1.0,
             now_playing_show_lyrics: true,
             now_playing_show_queue: true,
+            now_playing_lyrics_expanded: true,
         }
     }
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_buffer_ms() -> u32 {
