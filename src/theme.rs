@@ -257,6 +257,12 @@ static CUSTOM_HEADER_FONT_ACTIVE: std::sync::atomic::AtomicBool =
 static CUSTOM_COLLECTION_FONT_ACTIVE: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
+/// Resets the custom font active state when a window is destroyed.
+pub fn reset_custom_fonts() {
+    CUSTOM_HEADER_FONT_ACTIVE.store(false, std::sync::atomic::Ordering::Relaxed);
+    CUSTOM_COLLECTION_FONT_ACTIVE.store(false, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub fn regular(size: f32) -> egui::FontId {
     fastframe_fonts::Weight::Regular.font_id(size)
 }
@@ -503,6 +509,33 @@ fn base_font_definitions() -> egui::FontDefinitions {
     let mut fonts = fastframe_fonts::FontSetup::default()
         .companion("noto_emoji", std::sync::Arc::new(emoji))
         .definitions();
+    let regular_fam = fonts
+        .families
+        .get(&fastframe_fonts::Weight::Regular.family())
+        .cloned()
+        .or_else(|| fonts.families.get(&egui::FontFamily::Proportional).cloned())
+        .unwrap_or_default();
+    let bold_fam = fonts
+        .families
+        .get(&fastframe_fonts::Weight::Bold.family())
+        .cloned()
+        .unwrap_or_else(|| regular_fam.clone());
+
+    fonts.families.insert(
+        egui::FontFamily::Name("header-regular".into()),
+        regular_fam.clone(),
+    );
+    fonts.families.insert(
+        egui::FontFamily::Name("header-bold".into()),
+        bold_fam.clone(),
+    );
+    fonts.families.insert(
+        egui::FontFamily::Name("collection-regular".into()),
+        regular_fam,
+    );
+    fonts
+        .families
+        .insert(egui::FontFamily::Name("collection-bold".into()), bold_fam);
     text_rendering().apply_to(&mut fonts);
     fonts
 }
@@ -1526,5 +1559,42 @@ mod tests {
         assert_eq!(font_medium(false, 14.0), medium(14.0));
         assert_eq!(font_regular(true, 13.0), header_regular(13.0));
         assert_eq!(font_regular(false, 13.0), regular(13.0));
+    }
+
+    #[test]
+    fn base_font_definitions_include_header_and_collection_families() {
+        let defs = base_font_definitions();
+        assert!(
+            defs.families
+                .contains_key(&egui::FontFamily::Name("header-regular".into()))
+        );
+        assert!(
+            defs.families
+                .contains_key(&egui::FontFamily::Name("header-bold".into()))
+        );
+        assert!(
+            defs.families
+                .contains_key(&egui::FontFamily::Name("collection-regular".into()))
+        );
+        assert!(
+            defs.families
+                .contains_key(&egui::FontFamily::Name("collection-bold".into()))
+        );
+    }
+
+    #[test]
+    fn window_lifecycle_font_recreation_does_not_panic() {
+        let ctx = egui::Context::default();
+        install(&ctx);
+        CUSTOM_HEADER_FONT_ACTIVE.store(true, std::sync::atomic::Ordering::Relaxed);
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            let font = header_regular(14.0);
+            ui.label(egui::RichText::new("test").font(font));
+            let font_b = header_bold(14.0);
+            ui.label(egui::RichText::new("test").font(font_b));
+        });
+        output.textures_delta.clear();
+        reset_custom_fonts();
+        assert!(!CUSTOM_HEADER_FONT_ACTIVE.load(std::sync::atomic::Ordering::Relaxed));
     }
 }

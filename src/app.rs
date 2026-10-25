@@ -1325,6 +1325,7 @@ impl App {
     /// window is (re)created around this long-lived application state.
     pub fn attach(&mut self, ctx: &egui::Context) {
         theme::install(ctx);
+        theme::sync_custom_fonts(ctx, &self.settings);
         ctx.add_bytes_loader(std::sync::Arc::new(self.backend.art().clone()));
         ctx.add_image_loader(std::sync::Arc::new(self.backend.art().scaler()));
         // The covers the last window's egui held are gone with it.
@@ -1395,6 +1396,7 @@ impl App {
         self.wants_show = false;
         // Showing it again is coming back to it.
         self.window_focused = false;
+        theme::reset_custom_fonts();
     }
 
     /// Whether closing the window keeps the app in the tray rather than
